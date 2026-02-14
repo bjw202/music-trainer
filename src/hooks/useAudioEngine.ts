@@ -47,6 +47,7 @@ export function useAudioEngine() {
       setError(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to initialize audio engine'
+      console.error('[useAudioEngine] Initialization error:', message)
       setError(message)
       setIsReady(false)
     }
@@ -57,22 +58,28 @@ export function useAudioEngine() {
    */
   const loadFile = useCallback(
     async (file: File) => {
+      console.log('[useAudioEngine] loadFile called, engineRef.current:', !!engineRef.current)
       if (!engineRef.current) {
         throw new Error('AudioEngine not initialized')
       }
 
       try {
+        console.log('[useAudioEngine] Setting file and loading...')
         useAudioStore.getState().setFile(file)
         useAudioStore.getState().setLoading(true)
 
         const arrayBuffer = await file.arrayBuffer()
+        console.log('[useAudioEngine] ArrayBuffer size:', arrayBuffer.byteLength)
         const buffer = await engineRef.current.loadBuffer(arrayBuffer)
+        console.log('[useAudioEngine] Buffer loaded, duration:', buffer.duration)
 
         useAudioStore.getState().setBuffer(buffer)
         usePlayerStore.getState().setDuration(buffer.duration)
         setError(null)
+        console.log('[useAudioEngine] File loading complete')
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load audio file'
+        console.error('[useAudioEngine] Error:', message)
         setError(message)
         useAudioStore.getState().setError(message)
       }
@@ -80,17 +87,20 @@ export function useAudioEngine() {
     []
   )
 
+  // 볼륨 상태 구독
+  const volume = useControlStore((state) => state.volume)
+  const muted = useControlStore((state) => state.muted)
+
   /**
-   * 볼륨 동기화
+   * 볼륨 동기화 - 볼륨이나 음소거 상태가 변경될 때마다 실행
    */
   useEffect(() => {
     if (!engineRef.current) {
       return
     }
 
-    const { volume, muted } = useControlStore.getState()
     engineRef.current.setVolume(muted ? 0 : volume / 100)
-  }, [])
+  }, [volume, muted])
 
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {

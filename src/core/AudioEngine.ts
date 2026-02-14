@@ -59,6 +59,9 @@ export class AudioEngine {
   /**
    * AudioContext 초기화
    * @throws Error - AudioContext 미지원 시
+   *
+   * Note: AudioContext가 'suspended' 상태여도 초기화는 완료합니다.
+   * 실제 resume은 play() 호출 시 사용자 제스처 컨텍스트에서 수행됩니다.
    */
   async initialize(): Promise<void> {
     // 이미 초기화된 경우 무시
@@ -82,10 +85,8 @@ export class AudioEngine {
         this.analyserNode.connect(this.context.destination)
       }
 
-      // AudioContext resume (사용자 제스처 필요)
-      if (this.context.state === 'suspended') {
-        await this.context.resume()
-      }
+      // AudioContext가 suspended 상태면 resume하지 않고 초기화 완료
+      // 실제 resume은 play() 호출 시 사용자 제스처 컨텍스트에서 수행
     } catch (error) {
       throw new Error(`Failed to initialize AudioContext: ${error}`)
     }
@@ -115,7 +116,7 @@ export class AudioEngine {
    * 재생 시작
    * 현재 위치에서 재생을 시작합니다.
    */
-  play(): void {
+  async play(): Promise<void> {
     if (!this.context || !this.buffer) {
       return // 버퍼가 없으면 무시
     }
@@ -123,6 +124,13 @@ export class AudioEngine {
     // 이미 재생 중이면 무시
     if (this.isPlaying) {
       return
+    }
+
+    // AudioContext가 suspended 상태면 비동기로 resume 시도 (블로킹하지 않음)
+    if (this.context.state === 'suspended') {
+      this.context.resume().catch(() => {
+        console.log('[AudioEngine] Resume failed, will retry on next interaction')
+      })
     }
 
     try {

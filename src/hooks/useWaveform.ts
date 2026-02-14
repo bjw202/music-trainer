@@ -1,37 +1,46 @@
 import { useRef, useEffect, useCallback } from 'react'
 import WaveSurfer from 'wavesurfer.js'
 import { useAudioStore } from '../stores/audioStore'
-import { useLoopStore } from '../stores/loopStore'
+
+interface UseWaveformOptions {
+  onSeek?: (time: number) => void
+}
 
 /**
  * 웨이브폼 렌더링 훅
- *
- * @returns {Object} - 컨테이너 레프, 시간 설정 함수, 루프 영역 설정 함수
  */
-export function useWaveform() {
+export function useWaveform(options: UseWaveformOptions = {}) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const waveSurferRef = useRef<WaveSurfer | null>(null)
-  const regionsRef = useRef<any[]>([])
   const buffer = useAudioStore((state) => state.buffer)
-  const loopA = useLoopStore((state) => state.loopA)
-  const loopB = useLoopStore((state) => state.loopB)
-  const loopEnabled = useLoopStore((state) => state.loopEnabled)
+  const { onSeek } = options
+
+  // onSeek을 ref로 저장하여 항상 최신 콜백을 참조
+  const onSeekRef = useRef(onSeek)
+  useEffect(() => {
+    onSeekRef.current = onSeek
+  }, [onSeek])
 
   /**
-   * 웨이브폼 초기화
+   * container ref 콜백 - DOM 요소가 마운트될 때 호출됨
    */
-  useEffect(() => {
-    if (!containerRef.current) {
-      return
-    }
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node
 
     // 이미 초기화된 경우 무시
     if (waveSurferRef.current) {
       return
     }
 
+    // DOM 노드가 없으면 무시
+    if (!node) {
+      return
+    }
+
+    console.log('[useWaveform] Container mounted, initializing WaveSurfer...')
+
     const waveSurfer = WaveSurfer.create({
-      container: containerRef.current,
+      container: node,
       waveColor: '#4a4a4a',
       progressColor: '#007aff',
       cursorColor: '#007aff',
@@ -46,11 +55,26 @@ export function useWaveform() {
       interact: true,
     })
 
-    waveSurferRef.current = waveSurfer
+    // 파형 클릭 시 onSeek 콜백 호출 (ref를 사용하여 항상 최신 콜백 참조)
+    waveSurfer.on('interaction', (newTime: number) => {
+      console.log('[useWaveform] Interaction at time:', newTime)
+      onSeekRef.current?.(newTime)
+    })
 
+    waveSurferRef.current = waveSurfer
+    console.log('[useWaveform] WaveSurfer initialized successfully')
+  }, []) // 의존성 제거 - ref를 사용하므로 재생성 불필요
+
+  /**
+   * 언마운트 시 정리
+   */
+  useEffect(() => {
     return () => {
-      waveSurfer.destroy()
-      waveSurferRef.current = null
+      if (waveSurferRef.current) {
+        console.log('[useWaveform] Destroying WaveSurfer')
+        waveSurferRef.current.destroy()
+        waveSurferRef.current = null
+      }
     }
   }, [])
 
@@ -99,6 +123,7 @@ export function useWaveform() {
 
   return {
     containerRef,
+    setContainerRef,
     setCurrentTime,
     setLoopRegion,
   }

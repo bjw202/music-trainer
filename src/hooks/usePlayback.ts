@@ -17,14 +17,23 @@ export function usePlayback(engine: AudioEngine | null) {
 
   /**
    * 재생 시작
+   * UI 상태는 즉시 업데이트하고, AudioContext resume은 백그라운드에서 처리
    */
-  const play = useCallback(() => {
+  const play = useCallback(async () => {
     if (!engine || !buffer) {
       return
     }
 
-    engine.play()
+    // UI 상태 먼저 업데이트 (즉각적인 피드백)
     usePlayerStore.getState().play()
+
+    // 오디오 재생 시도
+    try {
+      await engine.play()
+    } catch (error) {
+      console.error('[usePlayback] Play error:', error)
+      // 에러가 발생해도 UI 상태는 유지 (사용자 경험)
+    }
   }, [engine, buffer])
 
   /**
