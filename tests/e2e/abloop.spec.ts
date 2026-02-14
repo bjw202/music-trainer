@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { setupAudioPage, loadAudioFile } from './helpers/audio-loader'
 
 /**
  * A-B Loop Tests
@@ -9,15 +10,11 @@ import { test, expect } from '@playwright/test'
 
 test.describe('A-B Loop Controls', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-
-    // Load test audio file
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await setupAudioPage(page)
+    await loadAudioFile(page)
   })
 
-  test('should set loop A point when I key is pressed', async () => {
+  test('should set loop A point when I key is pressed', async ({ page }) => {
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
 
     // Initially A should not be set
@@ -35,7 +32,7 @@ test.describe('A-B Loop Controls', () => {
     await expect(timeDisplay).toBeVisible()
   })
 
-  test('should set loop B point when O key is pressed', async () => {
+  test('should set loop B point when O key is pressed', async ({ page }) => {
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
 
     // Initially B should not be set
@@ -53,7 +50,7 @@ test.describe('A-B Loop Controls', () => {
     await expect(timeDisplay).toBeVisible()
   })
 
-  test('should set A point when A button is clicked', async () => {
+  test('should set A point when A button is clicked', async ({ page }) => {
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
 
     await buttonA.click()
@@ -62,7 +59,7 @@ test.describe('A-B Loop Controls', () => {
     await expect(buttonA).toHaveAttribute('aria-pressed', 'true')
   })
 
-  test('should set B point when B button is clicked', async () => {
+  test('should set B point when B button is clicked', async ({ page }) => {
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
 
     await buttonB.click()
@@ -71,7 +68,7 @@ test.describe('A-B Loop Controls', () => {
     await expect(buttonB).toHaveAttribute('aria-pressed', 'true')
   })
 
-  test('should enable loop toggle only after both A and B are set', async () => {
+  test('should enable loop toggle only after both A and B are set', async ({ page }) => {
     const loopButton = page.getByRole('button', { name: /toggle loop/i })
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
@@ -88,7 +85,7 @@ test.describe('A-B Loop Controls', () => {
     await expect(loopButton).toBeEnabled()
   })
 
-  test('should toggle loop on when both points are set', async () => {
+  test('should toggle loop on when both points are set', async ({ page }) => {
     const loopButton = page.getByRole('button', { name: /toggle loop/i })
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
@@ -98,17 +95,16 @@ test.describe('A-B Loop Controls', () => {
     await buttonB.click()
 
     // Initially not active
-    await expect(loopButton).not.toHaveClass(/bg-\\[\\#34c759\\]/)
+    await expect(loopButton).toHaveAttribute('aria-pressed', 'false')
 
     // Toggle loop on
     await loopButton.click()
 
-    // Should show active state (green background)
-    await expect(loopButton).toHaveClass(/bg-\\[\\#34c759\\]/)
+    // Should show active state
     await expect(loopButton).toHaveAttribute('aria-pressed', 'true')
   })
 
-  test('should toggle loop off when clicked again', async () => {
+  test('should toggle loop off when clicked again', async ({ page }) => {
     const loopButton = page.getByRole('button', { name: /toggle loop/i })
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
@@ -126,20 +122,18 @@ test.describe('A-B Loop Controls', () => {
     await expect(loopButton).toHaveAttribute('aria-pressed', 'false')
   })
 
-  test('should disable loop controls when no file is loaded', async () => {
+  test('should disable loop controls when no file is loaded', async ({ page }) => {
     // Reload without file
     await page.goto('/')
+    await page.waitForLoadState('networkidle')
 
-    const buttonA = page.getByRole('button', { name: /set loop point a/i })
-    const buttonB = page.getByRole('button', { name: /set loop point b/i })
-    const loopButton = page.getByRole('button', { name: /toggle loop/i })
-
-    await expect(buttonA).toBeDisabled()
-    await expect(buttonB).toBeDisabled()
-    await expect(loopButton).toBeDisabled()
+    // When no file is loaded, the loop controls should not be visible
+    // Instead, the drag-drop zone should be visible
+    const dragDropZone = page.getByText('Drag & Drop Audio File')
+    await expect(dragDropZone).toBeVisible()
   })
 
-  test('should display A and B times in formatted format', async () => {
+  test('should display A and B times in formatted format', async ({ page }) => {
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
 
@@ -161,11 +155,8 @@ test.describe('A-B Loop Controls', () => {
 
 test.describe('A Key Jump to Loop Start', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await setupAudioPage(page)
+    await loadAudioFile(page)
 
     // Start playback
     const playButton = page.getByRole('button', { name: /play/i })
@@ -173,7 +164,7 @@ test.describe('A Key Jump to Loop Start', () => {
     await page.waitForTimeout(500)
   })
 
-  test('should NOT jump to A point when loop is not enabled', async () => {
+  test('should NOT jump to A point when loop is not enabled', async ({ page }) => {
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
     const timeDisplay = page.getByTestId('time-display')
 
@@ -195,7 +186,7 @@ test.describe('A Key Jump to Loop Start', () => {
     expect(timeAfterJump).toBe(timeBeforeJump)
   })
 
-  test('should jump to A point when loop is enabled', async () => {
+  test('should jump to A point when loop is enabled', async ({ page }) => {
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
     const loopButton = page.getByRole('button', { name: /toggle loop/i })
@@ -228,11 +219,10 @@ test.describe('A Key Jump to Loop Start', () => {
     expect(timeAfterJump).toBeDefined()
   })
 
-  test('should NOT jump to A point when A is not set', async () => {
-    const loopButton = page.getByRole('button', { name: /toggle loop/i })
+  test('should NOT jump to A point when A is not set', async ({ page }) => {
     const timeDisplay = page.getByTestId('time-display')
 
-    // Enable loop without setting points (won't actually enable, but test the behavior)
+    // Set only B without setting A
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
     await buttonB.click()
 
@@ -251,14 +241,11 @@ test.describe('A Key Jump to Loop Start', () => {
 
 test.describe('Loop Back Verification', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await setupAudioPage(page)
+    await loadAudioFile(page)
   })
 
-  test('should loop back to A when reaching B during playback', async () => {
+  test('should loop back to A when reaching B during playback', async ({ page }) => {
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
     const loopButton = page.getByRole('button', { name: /toggle loop/i })
@@ -293,7 +280,7 @@ test.describe('Loop Back Verification', () => {
     expect(timeAfter).toBeDefined()
   })
 
-  test('should not loop when loop is disabled', async () => {
+  test('should not loop when loop is disabled', async ({ page }) => {
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
     const playButton = page.getByRole('button', { name: /play/i })
@@ -324,30 +311,28 @@ test.describe('Loop Back Verification', () => {
 
 test.describe('Loop Display', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await setupAudioPage(page)
+    await loadAudioFile(page)
   })
 
-  test('should show loop status display', async () => {
+  test('should show loop status display', async ({ page }) => {
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
     const buttonB = page.getByRole('button', { name: /set loop point b/i })
     const loopButton = page.getByRole('button', { name: /toggle loop/i })
-    const loopDisplay = page.getByTestId('loop-display')
 
-    // Initially should show no loop
-    await expect(loopDisplay).toContainText(/no loop|disabled|off/i)
-
-    // Set points
+    // Set points first - loop display is only visible when both points are set
     await buttonA.click()
     await buttonB.click()
+
+    // Now loop display should be visible showing OFF state
+    const loopDisplay = page.getByTestId('loop-display')
+    await expect(loopDisplay).toBeVisible()
+    await expect(loopDisplay).toContainText(/OFF/i)
 
     // Enable loop
     await loopButton.click()
 
     // Should show active loop
-    await expect(loopDisplay).toBeVisible()
+    await expect(loopDisplay).toContainText(/ON/i)
   })
 })

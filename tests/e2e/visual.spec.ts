@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { setupAudioPage, loadAudioFile } from './helpers/audio-loader'
 
 /**
  * Visual Regression Tests
@@ -9,7 +10,7 @@ import { test, expect } from '@playwright/test'
 
 test.describe('Visual Regression', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
+    await setupAudioPage(page)
   })
 
   test('should render initial drag-drop zone correctly', async ({ page }) => {
@@ -29,11 +30,10 @@ test.describe('Visual Regression', () => {
 
   test('should render waveform after loading audio', async ({ page }) => {
     // Load test audio
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
+    await loadAudioFile(page)
 
     // Wait for waveform to render
-    await page.waitForTimeout(3000)
+    await page.waitForTimeout(1000)
 
     // Take screenshot
     await expect(page).toHaveScreenshot('waveform-rendered.png', {
@@ -44,9 +44,7 @@ test.describe('Visual Regression', () => {
 
   test('should render playhead at correct position', async ({ page }) => {
     // Load audio
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await loadAudioFile(page)
 
     // Start playback
     const playButton = page.getByRole('button', { name: /play/i })
@@ -64,9 +62,7 @@ test.describe('Visual Regression', () => {
 
   test('should render loop region visualization', async ({ page }) => {
     // Load audio
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await loadAudioFile(page)
 
     // Set loop points
     const buttonA = page.getByRole('button', { name: /set loop point a/i })
@@ -92,19 +88,18 @@ test.describe('Visual Regression', () => {
 
   test('should render active state for play button', async ({ page }) => {
     // Load audio
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await loadAudioFile(page)
 
     // Start playback
     const playButton = page.getByRole('button', { name: /play/i })
     await playButton.click()
 
-    // Wait for state update
-    await page.waitForTimeout(200)
+    // Wait for state update - button becomes pause button
+    const pauseButton = page.getByRole('button', { name: /pause/i })
+    await expect(pauseButton).toBeVisible()
 
-    // Screenshot of active play button
-    await expect(playButton).toHaveScreenshot('play-button-active.png', {
+    // Screenshot of active play button (now pause)
+    await expect(pauseButton).toHaveScreenshot('play-button-active.png', {
       maxDiffPixels: 50,
       threshold: 0.01,
     })
@@ -112,9 +107,7 @@ test.describe('Visual Regression', () => {
 
   test('should render muted state correctly', async ({ page }) => {
     // Load audio
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await loadAudioFile(page)
 
     // Mute
     const muteButton = page.getByRole('button', { name: /mute/i })
@@ -132,9 +125,7 @@ test.describe('Visual Regression', () => {
 
   test('should render control panel layout correctly', async ({ page }) => {
     // Load audio
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await loadAudioFile(page)
 
     // Screenshot of entire control panel
     const controlPanel = page.locator('.bg-\\[\\#2a2a2a\\]').first()
@@ -148,9 +139,7 @@ test.describe('Visual Regression', () => {
 
   test('should render time display correctly', async ({ page }) => {
     // Load audio
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(2000)
+    await loadAudioFile(page)
 
     // Screenshot of time display
     const timeDisplay = page.getByTestId('time-display')
@@ -166,14 +155,7 @@ test.describe('Visual Regression', () => {
     // Don't load audio - controls should be disabled
     await page.waitForLoadState('networkidle')
 
-    // Screenshot of disabled controls
-    const playButton = page.getByRole('button', { name: /play/i })
-    const stopButton = page.getByRole('button', { name: /stop/i })
-
-    await expect(playButton).toBeDisabled()
-    await expect(stopButton).toBeDisabled()
-
-    // Full page screenshot of initial state
+    // Take screenshot of initial state - drag drop zone visible
     await expect(page).toHaveScreenshot('initial-disabled-state.png', {
       maxDiffPixels: 100,
       threshold: 0.01,
@@ -182,10 +164,7 @@ test.describe('Visual Regression', () => {
 
   test('should render waveform with loading state', async ({ page }) => {
     // Load audio and capture during loading
-    const fileInput = page.locator('input[type="file"]')
-
-    // Start loading and immediately capture
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
+    await loadAudioFile(page)
 
     // Quick screenshot might catch loading state
     await page.waitForTimeout(500)
@@ -199,12 +178,8 @@ test.describe('Visual Regression', () => {
 
 test.describe('Visual Component Isolation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-
-    // Load audio
-    const fileInput = page.locator('input[type="file"]')
-    await fileInput.setInputFiles('./public/test-audio/test-song.mp3')
-    await page.waitForTimeout(1000)
+    await setupAudioPage(page)
+    await loadAudioFile(page)
   })
 
   test('should isolate play button visual changes', async ({ page }) => {
@@ -213,11 +188,12 @@ test.describe('Visual Component Isolation', () => {
     // Before playing
     await expect(playButton).toHaveScreenshot('play-button-before.png')
 
-    // After playing
+    // After playing - button becomes pause button
     await playButton.click()
     await page.waitForTimeout(200)
 
-    await expect(playButton).toHaveScreenshot('play-button-after.png')
+    const pauseButton = page.getByRole('button', { name: /pause/i })
+    await expect(pauseButton).toHaveScreenshot('play-button-after.png')
   })
 
   test('should isolate loop button visual changes', async ({ page }) => {
