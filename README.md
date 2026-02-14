@@ -1,15 +1,25 @@
-# Guitar MP3 Trainer v2
+# Music Trainer
 
-Audio playback tool for musicians to practice with their favorite MP3 tracks.
+기타 연습을 위한 웹 기반 오디오 트레이너입니다. A-B 루프, 파형 시각화, 키보드 단축키를 지원하여 효과적인 악기 연습 환경을 제공합니다.
+
+## 주요 기능
+
+- **오디오 파일 로드**: MP3, WAV, M4A, OGG 형식 지원 (드래그 앤 드롭)
+- **파형 시각화**: wavesurfer.js를 활용한 부드러운 파형 표시
+- **A-B 루프**: 특정 구간 반복 재생으로 연습 효율 향상
+- **볼륨 제어**: 0%~100% 마스터 볼륨 및 뮤트 기능
+- **키보드 단축키**: Space(재생/일시정지), I/O(A/B 지점), M(뮤트), 화살표(탐색)
 
 ## Tech Stack
 
 - **React 19.0.0** - UI library
-- **TypeScript 5.7.x** - Type-safe JavaScript (strict mode)
-- **Vite 6.0.x** - Build tool and dev server
-- **Zustand 5.0.x** - State management
-- **Tailwind CSS 4.0.x** - Utility-first CSS
+- **TypeScript 5.9.x** - Type-safe JavaScript (strict mode)
+- **Vite 6.x** - Build tool and dev server
+- **Zustand 5.x** - State management
+- **Tailwind CSS 4.x** - Utility-first CSS
 - **wavesurfer.js 7.8.x** - Audio waveform visualization
+- **Vitest** - Unit testing (190 tests)
+- **Playwright** - E2E testing
 
 ## Project Structure
 
@@ -101,9 +111,21 @@ Dark theme colors:
 
 ## Testing
 
-- **Unit Tests**: Vitest + React Testing Library
+- **Unit Tests**: Vitest + React Testing Library (190 tests)
 - **E2E Tests**: Playwright
 - **Coverage**: v8 (built into Vitest)
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| Space | Play / Pause |
+| I | Set A point |
+| O | Set B point |
+| A | Jump to A point (when loop active) |
+| M | Toggle mute |
+| ← | Seek -5 seconds |
+| → | Seek +5 seconds |
 
 ## Quality Standards
 
@@ -114,4 +136,4 @@ Dark theme colors:
 
 ## License
 
-ISC
+MIT
