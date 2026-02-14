@@ -12,6 +12,7 @@ import { MuteButton } from '../Volume/MuteButton'
 import { ABLoopControls } from '../ABLoop/ABLoopControls'
 import { ABLoopDisplay } from '../ABLoop/ABLoopDisplay'
 import { SpeedPitchPanel } from '../SpeedPitch'
+import { YouTubeSection } from '../YouTube'
 import { useAudioEngine } from '../../hooks/useAudioEngine'
 import { usePlayback } from '../../hooks/usePlayback'
 import { useSpeedPitch } from '../../hooks/useSpeedPitch'
@@ -108,6 +109,13 @@ export function Player() {
   return (
     <AppLayout>
       <Header fileName={fileName} />
+
+      {/* YouTube URL 변환 섹션 - 오디오가 로드되지 않았을 때만 표시 */}
+      {!hasAudio && (
+        <div className="mb-4">
+          <YouTubeSection />
+        </div>
+      )}
 
       {!hasAudio ? (
         <DragDropZone

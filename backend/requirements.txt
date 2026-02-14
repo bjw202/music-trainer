@@ -1,0 +1,13 @@
+# Core dependencies
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+yt-dlp>=2025.1.15
+pydantic>=2.9
+pydantic-settings>=2.7
+python-multipart>=0.0.19
+sse-starlette>=2.2
+httpx>=0.28
+
+# Test dependencies
+pytest>=8.3
+pytest-asyncio>=0.25

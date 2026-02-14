@@ -4,15 +4,15 @@ description: |
   Backend architecture and database specialist. Use PROACTIVELY for API design, authentication, database modeling, schema design, query optimization, and server implementation.
   MUST INVOKE when ANY of these keywords appear in user request:
   --ultrathink flag: Activate Sequential Thinking MCP for deep analysis of backend architecture decisions, database schema design, and API patterns.
-  EN: backend, API, server, authentication, database, REST, GraphQL, microservices, JWT, OAuth, SQL, NoSQL, PostgreSQL, MongoDB, Redis, Oracle, PL/SQL, schema, query, index, data modeling
-  KO: 백엔드, API, 서버, 인증, 데이터베이스, RESTful, 마이크로서비스, 토큰, SQL, NoSQL, PostgreSQL, MongoDB, Redis, 오라클, Oracle, PL/SQL, 스키마, 쿼리, 인덱스, 데이터모델링
+  EN: backend, API, server, authentication, database, REST, GraphQL, microservices, JWT, OAuth, SQL, NoSQL, PostgreSQL, MongoDB, Redis, Oracle, PL/SQL, schema, query, index, data modeling, yt-dlp, ytdlp, youtube, ffmpeg, audio extraction, media processing
+  KO: 백엔드, API, 서버, 인증, 데이터베이스, RESTful, 마이크로서비스, 토큰, SQL, NoSQL, PostgreSQL, MongoDB, Redis, 오라클, Oracle, PL/SQL, 스키마, 쿼리, 인덱스, 데이터모델링, yt-dlp, 유튜브, 음원변환, 미디어처리
   JA: バックエンド, API, サーバー, 認証, データベース, マイクロサービス, SQL, NoSQL, PostgreSQL, MongoDB, Redis, Oracle, PL/SQL, スキーマ, クエリ, インデックス
   ZH: 后端, API, 服务器, 认证, 数据库, 微服务, 令牌, SQL, NoSQL, PostgreSQL, MongoDB, Redis, Oracle, PL/SQL, 架构, 查询, 索引
 tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch, Bash, TodoWrite, Task, Skill, mcp__sequential-thinking__sequentialthinking, mcp__context7__resolve-library-id, mcp__context7__get-library-docs
-model: sonnet
+model: inherit
 permissionMode: default
 memory: project
-skills: moai-foundation-claude, moai-foundation-core, moai-foundation-philosopher, moai-foundation-quality, moai-foundation-context, moai-domain-backend, moai-domain-database, moai-lang-python, moai-lang-typescript, moai-lang-javascript, moai-lang-go, moai-lang-java, moai-lang-rust, moai-lang-php, moai-lang-csharp, moai-lang-ruby, moai-lang-elixir, moai-lang-scala, moai-platform-database-cloud, moai-platform-auth, moai-platform-deployment, moai-platform-chrome-extension, moai-tool-ast-grep, moai-workflow-tdd, moai-workflow-ddd, moai-workflow-testing, moai-workflow-jit-docs
+skills: moai-foundation-claude, moai-foundation-core, moai-foundation-philosopher, moai-foundation-quality, moai-foundation-context, moai-domain-backend, moai-domain-database, moai-lang-python, moai-lang-typescript, moai-lang-javascript, moai-lang-go, moai-lang-java, moai-lang-rust, moai-lang-php, moai-lang-csharp, moai-lang-ruby, moai-lang-elixir, moai-lang-scala, moai-platform-database-cloud, moai-platform-auth, moai-platform-deployment, moai-platform-chrome-extension, moai-tool-ast-grep, moai-tool-ytdlp, moai-workflow-tdd, moai-workflow-ddd, moai-workflow-testing, moai-workflow-jit-docs
 hooks:
   PreToolUse:
     - matcher: "Write|Edit"
