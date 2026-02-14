@@ -13,7 +13,7 @@ test.describe('Playback Flow', () => {
     await setupAudioPage(page)
 
     // Initially, drag-drop zone should be visible
-    const dragDropZone = page.getByText('Drag & Drop Audio File')
+    const dragDropZone = page.getByText('Drop your audio file here')
     await expect(dragDropZone).toBeVisible()
 
     // Load audio file
@@ -74,8 +74,8 @@ test.describe('Playback Flow', () => {
     const stopButton = page.getByRole('button', { name: /stop/i })
     await stopButton.click()
 
-    // Time should reset to 0:00
-    const timeDisplay = page.getByTestId('time-display')
+    // Time should reset to 0:00 (first time-display is current time)
+    const timeDisplay = page.getByTestId('time-display').first()
     await expect(timeDisplay).toContainText('0:00')
 
     // Should show play button (not paused, but stopped)
@@ -87,8 +87,8 @@ test.describe('Playback Flow', () => {
     await setupAudioPage(page)
     await loadAudioFile(page)
 
-    // Get initial time
-    const timeDisplay = page.getByTestId('time-display')
+    // Get initial time (first time-display is current time)
+    const timeDisplay = page.getByTestId('time-display').first()
     const initialTime = await timeDisplay.textContent()
 
     // Start playback
@@ -100,7 +100,7 @@ test.describe('Playback Flow', () => {
 
     const currentTime = await timeDisplay.textContent()
 
-    // Time should have changed (unless it's a very short file)
+    // Time should have changed
     expect(currentTime).not.toBe(initialTime)
   })
 
@@ -108,13 +108,20 @@ test.describe('Playback Flow', () => {
     await setupAudioPage(page)
     await loadAudioFile(page)
 
-    // Time display should show duration
-    const timeDisplay = page.getByTestId('time-display')
-    await expect(timeDisplay).toBeVisible()
+    // Two separate TimeDisplay components: first is current time, second is duration
+    const currentTimeDisplay = page.getByTestId('time-display').first()
+    const durationDisplay = page.getByTestId('time-display').last()
 
-    // Format should be "current / duration" like "0:00 / 0:30"
-    const text = await timeDisplay.textContent()
-    expect(text).toMatch(/\d+:\d{2}\s*\/\s*\d+:\d{2}/)
+    await expect(currentTimeDisplay).toBeVisible()
+    await expect(durationDisplay).toBeVisible()
+
+    // Current time should start at 0:00
+    const currentText = await currentTimeDisplay.textContent()
+    expect(currentText).toMatch(/0:00/)
+
+    // Duration should be a valid time format (M:SS or MM:SS)
+    const durationText = await durationDisplay.textContent()
+    expect(durationText).toMatch(/\d+:\d{2}/)
   })
 
   test('should disable controls when no file is loaded', async ({ page }) => {
@@ -122,7 +129,7 @@ test.describe('Playback Flow', () => {
 
     // Without loading a file, controls should not exist yet
     // The player controls only appear after loading a file
-    const dragDropZone = page.getByText('Drag & Drop Audio File')
+    const dragDropZone = page.getByText('Drop your audio file here')
     await expect(dragDropZone).toBeVisible()
   })
 

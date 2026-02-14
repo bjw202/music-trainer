@@ -12,6 +12,7 @@ import { setupAudioPage, loadAudioFile } from './helpers/audio-loader'
  * 2. Sequential Operation (2 tests)
  * 3. State Persistence (3 tests)
  * 4. Rapid Successive Operations (3 tests)
+ * 5. Speed/Pitch Compound Independence (6 tests) - SPEC-UPDATE-001
  */
 
 // ============================================================================
@@ -27,7 +28,7 @@ test.describe('Pairwise Independence', () => {
 
   test('Volume + Seek: changing volume should not affect seek position', async ({ page }) => {
     const volumeSlider = page.locator('input[type="range"][data-testid="volume-slider"]')
-    const timeDisplay = page.getByTestId('time-display')
+    const timeDisplay = page.getByTestId('time-display').first()
 
     // Pause playback first to test volume independence from time
     const playButton = page.getByRole('button', { name: /play/i })
@@ -53,7 +54,7 @@ test.describe('Pairwise Independence', () => {
   test('Mute + Seek: muting should not affect seek functionality', async ({ page }) => {
     const muteButton = page.getByRole('button', { name: /mute/i })
     const playButton = page.getByRole('button', { name: /play/i })
-    const timeDisplay = page.getByTestId('time-display')
+    const timeDisplay = page.getByTestId('time-display').first()
     const volumeSlider = page.locator('input[type="range"][data-testid="volume-slider"]')
 
     // Start playback
@@ -71,9 +72,9 @@ test.describe('Pairwise Independence', () => {
     // Should still be muted
     expect(await volumeSlider.inputValue()).toBe('0')
 
-    // Time should have changed
+    // Time should have changed (valid time format)
     const timeAfter = await timeDisplay.textContent()
-    expect(timeAfter).toBeDefined()
+    expect(timeAfter).toMatch(/\d+:\d{2}/)
   })
 
   test('Play/Pause + Volume: volume changes during play should not affect play state', async ({ page }) => {
@@ -376,7 +377,7 @@ test.describe('Rapid Successive Operations', () => {
 
   test('Rapid Volume + Seek operations should be handled correctly', async ({ page }) => {
     const volumeSlider = page.locator('input[type="range"][data-testid="volume-slider"]')
-    const timeDisplay = page.getByTestId('time-display')
+    const timeDisplay = page.getByTestId('time-display').first()
 
     // Start playback
     const playButton = page.getByRole('button', { name: /play/i })
@@ -395,7 +396,7 @@ test.describe('Rapid Successive Operations', () => {
     expect(parseInt(volume)).toBeLessThanOrEqual(42)
 
     const time = await timeDisplay.textContent()
-    expect(time).toBeDefined()
+    expect(time).toMatch(/\d+:\d{2}/)
   })
 
   test('Rapid Mute Toggle + Loop operations should work independently', async ({ page }) => {
@@ -441,5 +442,194 @@ test.describe('Rapid Successive Operations', () => {
 
     // Loop should still be enabled
     await expect(loopButton).toHaveAttribute('aria-pressed', 'true')
+  })
+})
+
+// ============================================================================
+// Category 5: Speed/Pitch Compound Independence (6 tests)
+// SPEC-UPDATE-001: 속도/피치와 기존 기능 간 Pairwise 독립성 검증
+// ============================================================================
+
+test.describe('Speed/Pitch Compound Independence', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupAudioPage(page)
+    await loadAudioFile(page)
+  })
+
+  test('Speed + Volume: changing speed should not affect volume', async ({ page }) => {
+    const speedSlider = page.getByTestId('speed-slider')
+    const volumeSlider = page.locator('input[type="range"][data-testid="volume-slider"]')
+
+    // Set volume to specific value
+    await volumeSlider.fill('55')
+    await page.waitForTimeout(100)
+    const volumeBefore = await volumeSlider.inputValue()
+    expect(parseInt(volumeBefore)).toBe(55)
+
+    // Change speed multiple times
+    await speedSlider.fill('0.5')
+    await page.waitForTimeout(100)
+    expect(await volumeSlider.inputValue()).toBe(volumeBefore)
+
+    await speedSlider.fill('2')
+    await page.waitForTimeout(100)
+    expect(await volumeSlider.inputValue()).toBe(volumeBefore)
+
+    await speedSlider.fill('1')
+    await page.waitForTimeout(100)
+
+    // Volume should remain exactly the same
+    const volumeAfter = await volumeSlider.inputValue()
+    expect(volumeAfter).toBe(volumeBefore)
+  })
+
+  test('Pitch + Volume: changing pitch should not affect volume', async ({ page }) => {
+    const pitchSlider = page.getByTestId('pitch-slider')
+    const volumeSlider = page.locator('input[type="range"][data-testid="volume-slider"]')
+
+    // Set volume to specific value
+    await volumeSlider.fill('45')
+    await page.waitForTimeout(100)
+    const volumeBefore = await volumeSlider.inputValue()
+    expect(parseInt(volumeBefore)).toBe(45)
+
+    // Change pitch multiple times
+    await pitchSlider.fill('12')
+    await page.waitForTimeout(100)
+    expect(await volumeSlider.inputValue()).toBe(volumeBefore)
+
+    await pitchSlider.fill('-12')
+    await page.waitForTimeout(100)
+    expect(await volumeSlider.inputValue()).toBe(volumeBefore)
+
+    await pitchSlider.fill('0')
+    await page.waitForTimeout(100)
+
+    // Volume should remain exactly the same
+    const volumeAfter = await volumeSlider.inputValue()
+    expect(volumeAfter).toBe(volumeBefore)
+  })
+
+  test('Speed + A-B Loop: speed change should preserve loop activation and points', async ({ page }) => {
+    const speedSlider = page.getByTestId('speed-slider')
+    const buttonA = page.getByRole('button', { name: /set loop point a/i })
+    const buttonB = page.getByRole('button', { name: /set loop point b/i })
+    const loopButton = page.getByRole('button', { name: /toggle loop/i })
+
+    // Set up and enable loop
+    await buttonA.click()
+    const timeA = await page.locator('button[aria-label="Set loop point A"] span.text-xs').textContent()
+    await page.waitForTimeout(1000)
+    await buttonB.click()
+    const timeB = await page.locator('button[aria-label="Set loop point B"] span.text-xs').textContent()
+    await loopButton.click()
+    await expect(loopButton).toHaveAttribute('aria-pressed', 'true')
+
+    // Change speed
+    await speedSlider.fill('0.7')
+    await page.waitForTimeout(100)
+
+    // Loop should still be enabled and points preserved
+    await expect(loopButton).toHaveAttribute('aria-pressed', 'true')
+    const timeAAfter = await page.locator('button[aria-label="Set loop point A"] span.text-xs').textContent()
+    const timeBAfter = await page.locator('button[aria-label="Set loop point B"] span.text-xs').textContent()
+    expect(timeAAfter).toBe(timeA)
+    expect(timeBAfter).toBe(timeB)
+
+    // Change speed again
+    await speedSlider.fill('1.8')
+    await page.waitForTimeout(100)
+
+    // Still preserved
+    await expect(loopButton).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('Pitch + A-B Loop: pitch change should preserve loop activation and points', async ({ page }) => {
+    const pitchSlider = page.getByTestId('pitch-slider')
+    const buttonA = page.getByRole('button', { name: /set loop point a/i })
+    const buttonB = page.getByRole('button', { name: /set loop point b/i })
+    const loopButton = page.getByRole('button', { name: /toggle loop/i })
+
+    // Set up and enable loop
+    await buttonA.click()
+    const timeA = await page.locator('button[aria-label="Set loop point A"] span.text-xs').textContent()
+    await page.waitForTimeout(1000)
+    await buttonB.click()
+    const timeB = await page.locator('button[aria-label="Set loop point B"] span.text-xs').textContent()
+    await loopButton.click()
+    await expect(loopButton).toHaveAttribute('aria-pressed', 'true')
+
+    // Change pitch
+    await pitchSlider.fill('8')
+    await page.waitForTimeout(100)
+
+    // Loop should still be enabled and points preserved
+    await expect(loopButton).toHaveAttribute('aria-pressed', 'true')
+    const timeAAfter = await page.locator('button[aria-label="Set loop point A"] span.text-xs').textContent()
+    const timeBAfter = await page.locator('button[aria-label="Set loop point B"] span.text-xs').textContent()
+    expect(timeAAfter).toBe(timeA)
+    expect(timeBAfter).toBe(timeB)
+
+    // Change pitch again
+    await pitchSlider.fill('-5')
+    await page.waitForTimeout(100)
+
+    // Still preserved
+    await expect(loopButton).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('Speed + Seek: speed should persist across seek operations', async ({ page }) => {
+    const speedSlider = page.getByTestId('speed-slider')
+    const playButton = page.getByRole('button', { name: /play/i })
+
+    // Set speed
+    await speedSlider.fill('1.5')
+    await page.waitForTimeout(100)
+    const speedBefore = await speedSlider.inputValue()
+    expect(parseFloat(speedBefore)).toBe(1.5)
+
+    // Start playback then seek (seek requires active playback context)
+    await playButton.click()
+    await page.waitForTimeout(500)
+
+    // Perform seek operations
+    await page.keyboard.press('ArrowRight')
+    await page.waitForTimeout(200)
+    await page.keyboard.press('ArrowRight')
+    await page.waitForTimeout(200)
+
+    // Speed should persist after seek
+    const speedAfter = await speedSlider.inputValue()
+    expect(speedAfter).toBe(speedBefore)
+  })
+
+  test('Pitch + Seek: pitch should persist across seek operations', async ({ page }) => {
+    const pitchSlider = page.getByTestId('pitch-slider')
+    const timeDisplay = page.getByTestId('time-display').first()
+
+    // Set pitch
+    await pitchSlider.fill('-7')
+    await page.waitForTimeout(100)
+    const pitchBefore = await pitchSlider.inputValue()
+    expect(parseInt(pitchBefore)).toBe(-7)
+
+    // Blur slider to prevent ArrowRight/Left from changing slider value
+    await page.locator('body').click()
+
+    // Perform multiple seek operations
+    const timeBefore = await timeDisplay.textContent()
+    await page.keyboard.press('ArrowRight')
+    await page.waitForTimeout(100)
+    await page.keyboard.press('ArrowLeft')
+    await page.waitForTimeout(100)
+    const timeAfter = await timeDisplay.textContent()
+
+    // Seek was performed (valid time format, verify before/after)
+    expect(timeBefore).toMatch(/\d+:\d{2}/)
+    expect(timeAfter).toMatch(/\d+:\d{2}/)
+
+    // Pitch should persist
+    const pitchAfter = await pitchSlider.inputValue()
+    expect(pitchAfter).toBe(pitchBefore)
   })
 })

@@ -185,17 +185,15 @@ Ableton Live 스타일: 검정(#000000) + 네온 그린 액센트
 
 음악 트레이너의 핵심은 완벽하게 독립적인 속도/피치/볼륨 제어입니다.
 
-**단일 트랙 오디오 그래프**
+**단일 트랙 오디오 그래프 (Phase 2 구현)**
 ```
 파일 소스 (File/Blob)
     ↓
-[AudioBuffer 로드]
+[AudioBuffer 로드] → 원본 버퍼 보관
     ↓
-BufferSource
+[SoundTouch 오프라인 처리] → processedBuffer 생성 (speed/pitch 변경 시)
     ↓
-TimeStretch Worklet (0.5x ~ 2.0x, 피치 유지)
-    ↓
-PitchShift Worklet (-12 ~ +12 반음, 속도 유지)
+BufferSource (processedBuffer 또는 원본 버퍼)
     ↓
 GainNode (마스터 볼륨)
     ↓
@@ -203,6 +201,8 @@ AnalyserNode (파형 데이터 추출)
     ↓
 Destination (스피커/헤드폰)
 ```
+
+**바이패스 모드**: speed=1.0 AND pitch=0일 때 SoundTouch 처리 생략, 원본 버퍼 직접 사용
 
 **멀티 트랙 오디오 그래프 (Phase 3: 스템 믹서)**
 ```
@@ -229,39 +229,33 @@ AnalyserNode (시각화)
 Destination
 ```
 
-### AudioWorklet으로 메인 스레드와 분리
+### SoundTouch 오프라인 버퍼 처리
 
-**왜 AudioWorklet을 사용하나?**
-- 오디오 콜백이 메인 스레드를 블로킹하지 않음
-- 자신의 독립적인 스레드에서 실시간 처리
-- 버퍼링 없이 매우 낮은 레이턴시
+**왜 오프라인 처리 방식을 선택했나?**
+- soundtouch-ts의 `processBuffer()` API가 동기적 처리에 최적화
+- AudioWorklet 실시간 처리 대비 구현 복잡도 대폭 감소
+- 짧은 오디오 파일(연습 구간)에서 처리 시간 무시 가능
+- 원본 버퍼를 항상 보관하여 바이패스 모드 즉시 전환
 
-**TimeStretchWorklet**
-- SoundTouch 알고리즘 실행
-- 속도 계수(playback rate)만 변경 가능
-- 피치는 자동으로 유지됨
+**처리 흐름 (src/core/worklets/soundtouch-processor.ts)**
+- `processBuffer(buffer, speed, pitch, context)`: AudioBuffer를 SoundTouch로 처리
+- `calculateProcessedDuration(duration, speed)`: 처리 후 재생 시간 계산
+- 바이패스: speed=1.0 AND pitch=0이면 원본 버퍼 반환
 
-**PitchShiftWorklet**
-- 피치 변경(세미톤 단위)
-- 속도는 자동으로 유지됨
-
-### 더블 버퍼링 전략
-
-**목표**: 속도/피치 변경 중 오디오 끊김 없음
-
-**구현**
-1. 현재 재생 중인 버퍼 (Buffer A)
-2. 새 속도/피치로 처리할 버퍼 (Buffer B) 준비
-3. 재생 위치가 Buffer B로 전환되는 순간 자연스럽게 변경
-4. 사용자는 끊김을 감지하지 못함
-
-**코드 흐름**
+**속도/피치 변경 시 동작**
 ```
 1. 사용자가 속도를 1.0x → 0.8x로 변경
-2. 백그라운드에서 0.8x 버퍼 생성 시작
-3. 현재 재생 위치 기반으로 동기화된 지점 계산
-4. 0.8x 버퍼가 준비되면 자동 전환
-5. 사용자는 끊김 없는 속도 변경 경험
+2. AudioEngine.setSpeed(0.8) 호출
+3. 현재 재생 위치 스냅샷 저장 (원본 시간 기준)
+4. rebuildProcessedBuffer()로 새 버퍼 동기 생성
+5. 재생 중이었다면 새 버퍼로 재시작 (위치 복원)
+6. 시간 추적: toProcessedTime / toOriginalTime으로 변환
+```
+
+**시간 추적 공식**
+```
+processedTime = originalTime / currentSpeed
+originalTime = processedTime * currentSpeed
 ```
 
 ---
@@ -332,32 +326,47 @@ Web Audio API는 독립적인 오디오 스레드에서 실행:
 - Prettier: 자동 포맷팅
 - TypeScript ESLint: 타입 관련 규칙
 
-### Vitest
+### 테스트 피라미드
 
-**단위 테스트**
-```
-예: Zustand 스토어 테스트
-- playerStore의 재생/일시정지 상태 전환
-- audioStore의 파일 로드 로직
-```
+본 프로젝트는 4계층 테스트 피라미드를 채택합니다.
+상세 전략은 `.moai/project/testing-strategy.md` 참조.
+
+| 계층 | 도구 | 커버리지 목표 | 검증 대상 |
+|------|------|-------------|----------|
+| Unit | Vitest | 85% | AudioEngine 메서드, Store 리듀서, 유틸리티 함수 |
+| Integration | Vitest + JSDOM | 주요 흐름 | Hook 통합: usePlayback→AudioEngine, useKeyboardShortcuts→playback |
+| E2E | Playwright | Critical path | 파일 로드→재생→Seek→Loop 전체 사용자 흐름 |
+| Visual | Playwright screenshot | 회귀 방지 | 레이아웃, 파형 렌더링, 컴포넌트 상태 |
+
+### Vitest (단위 + 통합)
+
+**단위 테스트** (`tests/unit/`)
+- AudioEngine: 재생/일시정지/정지/Seek/볼륨 제어
+- Zustand Store: playerStore, audioStore, controlStore, loopStore
+- 유틸리티: 시간 포맷, 파일 검증, 오디오 유틸
+
+**통합 테스트** (`tests/integration/` - 추가 예정)
+- usePlayback: play/pause/seek 시 AudioEngine + Store 동시 업데이트 검증
+- useKeyboardShortcuts: 키보드 핸들러가 playback 객체를 통해 engine 호출 검증
+- useWaveform: setCurrentTime/setLoopRegion이 WaveSurfer와 연동 검증
 
 **속도**: Jest 대비 100배 빠름 (Vite 기반)
 
-### Playwright
+### Playwright (E2E + Visual)
 
-**E2E 테스트**
-```
-예: 실제 사용자 흐름
-1. 파일 드래그 앤 드롭
-2. 파형 클릭하여 시크
-3. 속도 슬라이더 이동
-4. 실제 오디오 출력 검증 (Playwright Audio API)
-```
+**E2E 테스트** (`tests/e2e/`)
+- playback.spec.ts: 파일 로드 → 재생 → 일시정지 → 정지 → 시간 업데이트
+- controls.spec.ts: 볼륨 제어, 키보드 단축키, 파형 클릭 Seek
+- abloop.spec.ts: A/B 루프 설정, 토글, 구간 반복 검증
+- speed-pitch.spec.ts: 속도/피치 제어 (42개 케이스: 기본, 독립성, 재생, 키보드, 상태 유지, 빠른 연속 조작)
+- compound-independence.spec.ts: 기능 간 독립성 검증 (속도/피치 포함 6개 추가)
+- visual.spec.ts: 시각적 회귀 테스트 (스크린샷 비교)
 
-**실제 오디오 재생 검증**
-- Playwright는 실제 오디오를 재생
-- 마이크 입력으로 오디오 검증 가능
-- 음성/음악 톤 분석으로 속도 변경 확인
+**핵심 테스트 규칙**
+- `toBeDefined()` 금지: 항상 의미 있는 비교 assertion 사용
+- Before/After 비교 필수: 상태 변경 액션 후 반드시 이전 값과 비교
+- Selector 우선순위: `getByRole` > `getByTestId(.first())` > `getByText(regex)`
+- 다중 요소 주의: `getByTestId('time-display')`는 반드시 `.first()` 또는 `.last()` 명시
 
 ---
 

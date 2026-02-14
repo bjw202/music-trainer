@@ -11,6 +11,7 @@ import { VolumeSlider } from '../Volume/VolumeSlider'
 import { MuteButton } from '../Volume/MuteButton'
 import { ABLoopControls } from '../ABLoop/ABLoopControls'
 import { ABLoopDisplay } from '../ABLoop/ABLoopDisplay'
+import { SpeedPitchPanel } from '../SpeedPitch'
 import { useAudioEngine } from '../../hooks/useAudioEngine'
 import { usePlayback } from '../../hooks/usePlayback'
 import { useWaveform } from '../../hooks/useWaveform'
@@ -60,10 +61,20 @@ export function Player() {
     }
   }, [engine])
 
-  const { setContainerRef } = useWaveform({ onSeek: handleWaveformSeek })
+  const { setContainerRef, setCurrentTime: setWaveformTime, setLoopRegion } = useWaveform({ onSeek: handleWaveformSeek })
+
+  // 파형 playhead 동기화
+  useEffect(() => {
+    setWaveformTime(currentTime)
+  }, [currentTime, setWaveformTime])
+
+  // 루프 영역 동기화
+  useEffect(() => {
+    setLoopRegion(loopA, loopB, loopEnabled)
+  }, [loopA, loopB, loopEnabled, setLoopRegion])
 
   // 키보드 단축키
-  useKeyboardShortcuts(currentTime, duration, canPlay)
+  useKeyboardShortcuts(currentTime, duration, canPlay, playback)
 
   // 파일 로딩
   const {
@@ -205,6 +216,14 @@ export function Player() {
             </div>
           </div>
 
+          {/* Speed / Pitch */}
+          <div className="space-y-3">
+            <div className="flex items-center px-2">
+              <h3 className="text-sm font-semibold text-[#F5F5F5]">Speed / Pitch</h3>
+            </div>
+            <SpeedPitchPanel disabled={!canPlay} />
+          </div>
+
           {/* A-B Loop section */}
           <div className="space-y-3">
             {/* Label row */}
@@ -230,7 +249,7 @@ export function Player() {
           {/* Keyboard shortcuts hint */}
           <div className="text-center">
             <p className="text-xs text-[#6B7280]">
-              Space: Play/Pause · S: Stop · A/B: Set Points · L: Loop · ←/→: Seek
+              Space: Play/Pause · S: Stop · A/B: Set Points · L: Loop · ←/→: Seek · +/-: Speed · [/]: Pitch · R: Reset
             </p>
           </div>
 

@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react'
 import WaveSurfer from 'wavesurfer.js'
+import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js'
 import { useAudioStore } from '../stores/audioStore'
 
 interface UseWaveformOptions {
@@ -12,6 +13,7 @@ interface UseWaveformOptions {
 export function useWaveform(options: UseWaveformOptions = {}) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const waveSurferRef = useRef<WaveSurfer | null>(null)
+  const regionsRef = useRef<RegionsPlugin | null>(null)
   const buffer = useAudioStore((state) => state.buffer)
   const { onSeek } = options
 
@@ -39,6 +41,10 @@ export function useWaveform(options: UseWaveformOptions = {}) {
 
     console.log('[useWaveform] Container mounted, initializing WaveSurfer...')
 
+    // Regions 플러그인 생성
+    const regions = RegionsPlugin.create()
+    regionsRef.current = regions
+
     const waveSurfer = WaveSurfer.create({
       container: node,
       waveColor: '#4a4a4a',
@@ -49,10 +55,11 @@ export function useWaveform(options: UseWaveformOptions = {}) {
       barRadius: 0,
       height: 128,
       normalize: true,
-      minPxPerSec: 100,
+      minPxPerSec: 0,
       hideScrollbar: true,
       autoScroll: false,
       interact: true,
+      plugins: [regions],
     })
 
     // 파형 클릭 시 onSeek 콜백 호출 (ref를 사용하여 항상 최신 콜백 참조)
@@ -74,6 +81,7 @@ export function useWaveform(options: UseWaveformOptions = {}) {
         console.log('[useWaveform] Destroying WaveSurfer')
         waveSurferRef.current.destroy()
         waveSurferRef.current = null
+        regionsRef.current = null
       }
     }
   }, [])
@@ -108,17 +116,40 @@ export function useWaveform(options: UseWaveformOptions = {}) {
     if (!waveSurfer) {
       return
     }
-
-    waveSurfer.seekTo(time / waveSurfer.getDuration())
+    const duration = waveSurfer.getDuration()
+    if (duration <= 0) {
+      return // 로딩 전 호출 방지
+    }
+    waveSurfer.seekTo(time / duration)
   }, [])
 
   /**
-   * 루프 영역 설정 (비활성화 - WaveSurfer.js v7은 regions 플러그인이 필요함)
+   * 루프 영역 설정
    */
-  const setLoopRegion = useCallback(() => {
-    // WaveSurfer.js v7은 regions 플러그인이 별도로 필요함
-    // 현재 버전에서는 regions 기능을 비활성화
-    // 향후 regions 플러그인 추가 시 구현 예정
+  const setLoopRegion = useCallback((loopA: number | null, loopB: number | null, loopEnabled: boolean) => {
+    const regions = regionsRef.current
+    if (!regions) return
+
+    // 기존 루프 영역 제거
+    regions.clearRegions()
+
+    // A와 B가 모두 설정된 경우에만 영역 표시
+    if (loopA === null || loopB === null) return
+
+    const start = Math.min(loopA, loopB)
+    const end = Math.max(loopA, loopB)
+
+    // 루프 활성화 여부에 따라 색상 변경
+    const color = loopEnabled ? 'rgba(129, 140, 248, 0.25)' : 'rgba(129, 140, 248, 0.12)'
+
+    regions.addRegion({
+      id: 'ab-loop',
+      start,
+      end,
+      color,
+      drag: false,
+      resize: false,
+    })
   }, [])
 
   return {

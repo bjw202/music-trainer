@@ -7,6 +7,7 @@
  * - 재생/일시정지/정지 제어
  * - 시간 탐색 (seek)
  * - 볼륨 제어
+ * - 속도/피치 변경 (SoundTouch 기반)
  * - 메모리 누수 방지
  *
  * 제약사항:
@@ -14,6 +15,9 @@
  * - BufferSource는 일회용 (재생마다 새로 생성)
  * - 모든 노드는 사용 후 연결 해제 필수
  */
+
+import { SPEED_PITCH } from '../utils/constants'
+import { processBuffer, calculateProcessedDuration } from './worklets/soundtouch-processor'
 
 export interface AudioEngineEvents {
   /**
@@ -32,8 +36,11 @@ export class AudioEngine {
   // AudioContext 인스턴스
   private context: AudioContext | null = null
 
-  // 현재 로드된 오디오 버퍼
+  // 현재 로드된 오디오 버퍼 (원본)
   private buffer: AudioBuffer | null = null
+
+  // 속도/피치 처리된 버퍼
+  private processedBuffer: AudioBuffer | null = null
 
   // 오디오 그래프 노드들
   private source: AudioBufferSourceNode | null = null
@@ -43,7 +50,11 @@ export class AudioEngine {
   // 재생 상태
   private isPlaying: boolean = false
   private startTime: number = 0 // 재생 시작 시간 (context.currentTime)
-  private pauseTime: number = 0 // 일시정지 위치 (초)
+  private pauseTime: number = 0 // 일시정지 위치 (초, 원본 기준)
+
+  // 속도/피치 상태
+  private currentSpeed: number = SPEED_PITCH.DEFAULT_SPEED
+  private currentPitch: number = SPEED_PITCH.DEFAULT_PITCH
 
   // 시간 업데이트 루프
   private animationFrameId: number | null = null
@@ -137,9 +148,15 @@ export class AudioEngine {
       // 기존 소스 정리
       this.stopSource()
 
+      // 속도/피치가 기본값이 아니면 처리된 버퍼 사용
+      const activeBuffer = this.getActiveBuffer()
+      if (!activeBuffer) {
+        return
+      }
+
       // 새로운 BufferSource 생성 (일회용)
       this.source = this.context.createBufferSource()
-      this.source.buffer = this.buffer
+      this.source.buffer = activeBuffer
 
       // 그래프 연결: Source -> Gain -> Analyser -> Destination
       if (this.gainNode) {
@@ -154,10 +171,10 @@ export class AudioEngine {
         }
       }
 
-      // 현재 위치에서 재생 시작
-      const offset = this.pauseTime
-      this.startTime = this.context.currentTime - offset
-      this.source.start(0, offset)
+      // 처리된 버퍼에서의 오프셋 계산
+      const processedOffset = this.toProcessedTime(this.pauseTime)
+      this.startTime = this.context.currentTime - processedOffset
+      this.source.start(0, processedOffset)
 
       this.isPlaying = true
       this.startTimeUpdates()
@@ -232,6 +249,8 @@ export class AudioEngine {
     const wasPlaying = this.isPlaying
     if (wasPlaying) {
       this.stopSource()
+      this.isPlaying = false      // play()의 가드를 통과하기 위해 리셋
+      this.stopTimeUpdates()      // 이전 RAF 루프 중지
     }
 
     this.pauseTime = clampedTime
@@ -259,7 +278,7 @@ export class AudioEngine {
   }
 
   /**
-   * 현재 재생 위치 취득
+   * 현재 재생 위치 취득 (원본 기준 시간)
    * @returns 현재 위치 (초)
    */
   getCurrentTime(): number {
@@ -268,11 +287,12 @@ export class AudioEngine {
     }
 
     if (this.isPlaying) {
-      // 재생 중: 실시간 계산
-      const elapsed = this.context.currentTime - this.startTime
-      return Math.min(elapsed, this.buffer.duration)
+      // 재생 중: 처리된 버퍼 기준 경과 시간을 원본 시간으로 변환
+      const processedElapsed = this.context.currentTime - this.startTime
+      const originalTime = this.toOriginalTime(processedElapsed)
+      return Math.min(originalTime, this.buffer.duration)
     } else {
-      // 일시정지/정지: 저장된 위치 반환
+      // 일시정지/정지: 저장된 위치 반환 (원본 기준)
       return this.pauseTime
     }
   }
@@ -290,6 +310,92 @@ export class AudioEngine {
    */
   getIsPlaying(): boolean {
     return this.isPlaying
+  }
+
+  /**
+   * 재생 속도 설정
+   * @param speed - 재생 속도 (0.5 ~ 2.0)
+   */
+  setSpeed(speed: number): void {
+    if (!this.context || !this.buffer) {
+      return
+    }
+
+    const clampedSpeed = Math.max(
+      SPEED_PITCH.MIN_SPEED,
+      Math.min(speed, SPEED_PITCH.MAX_SPEED)
+    )
+
+    if (clampedSpeed === this.currentSpeed) {
+      return
+    }
+
+    // 현재 위치 스냅샷 (원본 기준)
+    const currentOriginalTime = this.getCurrentTime()
+    const wasPlaying = this.isPlaying
+
+    this.currentSpeed = clampedSpeed
+    this.rebuildProcessedBuffer()
+
+    // 위치 복원 후 재시작
+    this.pauseTime = currentOriginalTime
+
+    if (wasPlaying) {
+      this.stopSource()
+      this.isPlaying = false
+      this.stopTimeUpdates()
+      this.play()
+    }
+  }
+
+  /**
+   * 피치 설정
+   * @param pitch - 피치 변경 (반음 단위, -12 ~ +12)
+   */
+  setPitch(pitch: number): void {
+    if (!this.context || !this.buffer) {
+      return
+    }
+
+    const clampedPitch = Math.max(
+      SPEED_PITCH.MIN_PITCH,
+      Math.min(pitch, SPEED_PITCH.MAX_PITCH)
+    )
+
+    if (clampedPitch === this.currentPitch) {
+      return
+    }
+
+    // 현재 위치 스냅샷 (원본 기준)
+    const currentOriginalTime = this.getCurrentTime()
+    const wasPlaying = this.isPlaying
+
+    this.currentPitch = clampedPitch
+    this.rebuildProcessedBuffer()
+
+    // 위치 복원 후 재시작
+    this.pauseTime = currentOriginalTime
+
+    if (wasPlaying) {
+      this.stopSource()
+      this.isPlaying = false
+      this.stopTimeUpdates()
+      this.play()
+    }
+  }
+
+  /**
+   * 현재 속도 반환
+   */
+  getSpeed(): number {
+    return this.currentSpeed
+  }
+
+  /**
+   * 현재 피치 반환
+   */
+  getPitch(): number {
+    return this.currentPitch
   }
 
   /**
@@ -335,6 +441,7 @@ export class AudioEngine {
 
     // 버퍼 정리
     this.buffer = null
+    this.processedBuffer = null
   }
 
   /**
@@ -391,5 +498,56 @@ export class AudioEngine {
     }
 
     this.animationFrameId = requestAnimationFrame(this.updateTime)
+  }
+
+  /**
+   * 활성 버퍼 반환 (처리된 버퍼 또는 원본)
+   */
+  private getActiveBuffer(): AudioBuffer | null {
+    if (this.currentSpeed === 1.0 && this.currentPitch === 0) {
+      return this.buffer
+    }
+    return this.processedBuffer ?? this.buffer
+  }
+
+  /**
+   * SoundTouch로 처리된 버퍼 재생성
+   */
+  private rebuildProcessedBuffer(): void {
+    if (!this.context || !this.buffer) {
+      return
+    }
+
+    if (this.currentSpeed === 1.0 && this.currentPitch === 0) {
+      this.processedBuffer = null
+      return
+    }
+
+    this.processedBuffer = processBuffer(
+      this.buffer,
+      this.currentSpeed,
+      this.currentPitch,
+      this.context
+    )
+  }
+
+  /**
+   * 원본 시간을 처리된 버퍼 시간으로 변환
+   */
+  private toProcessedTime(originalTime: number): number {
+    if (this.currentSpeed === 1.0 && this.currentPitch === 0) {
+      return originalTime
+    }
+    return originalTime / this.currentSpeed
+  }
+
+  /**
+   * 처리된 버퍼 시간을 원본 시간으로 변환
+   */
+  private toOriginalTime(processedTime: number): number {
+    if (this.currentSpeed === 1.0 && this.currentPitch === 0) {
+      return processedTime
+    }
+    return processedTime * this.currentSpeed
   }
 }

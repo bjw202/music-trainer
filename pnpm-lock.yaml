@@ -14,6 +14,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
+      soundtouch-ts:
+        specifier: ^1.1.1
+        version: 1.1.1
       wavesurfer.js:
         specifier: ^7.8.6
         version: 7.12.1
@@ -1603,6 +1606,9 @@ packages:
   sirv@3.0.2:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==}
     engines: {node: '>=18'}
+
+  soundtouch-ts@1.1.1:
+    resolution: {integrity: sha512-w1aJk1lxCtjVsi/RGNOEu67MLosKkOHrQKoBAWAtg1lvJODPfHiFqJRvicNAQpHDxdb4zl5c1kx5NSM5mqEsbA==}
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
@@ -3292,6 +3298,8 @@ snapshots:
       '@polka/url': 1.0.0-next.29
       mrmime: 2.0.1
       totalist: 3.0.1
+
+  soundtouch-ts@1.1.1: {}
 
   source-map-js@1.2.1: {}
 

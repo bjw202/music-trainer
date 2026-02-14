@@ -83,7 +83,8 @@ describe('AudioEngine - Characterization Tests', () => {
       await audioEngine.initialize()
 
       expect(audioContextConstructorCalls).toBe(1)
-      expect(mockAudioContextInstance.resume).toHaveBeenCalledTimes(1)
+      // resume은 initialize()에서 호출하지 않음 - play()에서 사용자 제스처 컨텍스트에서 수행
+      expect(mockAudioContextInstance.resume).not.toHaveBeenCalled()
     })
 
     it('should be idempotent - multiple calls are safe', async () => {
@@ -267,12 +268,10 @@ describe('AudioEngine - Characterization Tests', () => {
       audioEngine.play()
       audioEngine.seek(5.0)
 
-      // seek() stops the source (stopSource) and tries to play() again
-      // but play() returns early if isPlaying is true (which it still is)
-      // This is a known implementation issue - seek while playing doesn't restart
+      // seek() stops the source, resets isPlaying, then calls play() to restart
       expect(mockBufferSource.stop).toHaveBeenCalled()
-      // Only 1 start call (initial play), seek doesn't restart due to isPlaying flag
-      expect(mockBufferSource.start).toHaveBeenCalledTimes(1)
+      // 2 start calls: initial play + seek restart
+      expect(mockBufferSource.start).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -385,6 +384,111 @@ describe('AudioEngine - Characterization Tests', () => {
 
       // Should not crash or have memory leaks
       expect(mockAudioContextInstance.close).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('setSpeed()', () => {
+    it('should update speed and return new value', async () => {
+      const mockAudioBuffer = { duration: 10, sampleRate: 44100, numberOfChannels: 2, length: 441000, getChannelData: vi.fn(() => new Float32Array(441000)) } as any
+      mockAudioContextInstance.decodeAudioData.mockResolvedValue(mockAudioBuffer)
+      mockAudioContextInstance.createBuffer = vi.fn(() => ({
+        numberOfChannels: 2,
+        getChannelData: vi.fn(() => new Float32Array(441000)),
+        duration: 10,
+        sampleRate: 44100,
+        length: 441000,
+      }))
+
+      await audioEngine.initialize()
+      await audioEngine.loadBuffer(mockArrayBuffer)
+      audioEngine.setSpeed(1.5)
+
+      expect(audioEngine.getSpeed()).toBe(1.5)
+    })
+
+    it('should clamp speed to min/max bounds', async () => {
+      const mockAudioBuffer = { duration: 10, sampleRate: 44100, numberOfChannels: 2, length: 441000, getChannelData: vi.fn(() => new Float32Array(441000)) } as any
+      mockAudioContextInstance.decodeAudioData.mockResolvedValue(mockAudioBuffer)
+      mockAudioContextInstance.createBuffer = vi.fn(() => ({
+        numberOfChannels: 2,
+        getChannelData: vi.fn(() => new Float32Array(441000)),
+        duration: 10,
+        sampleRate: 44100,
+        length: 441000,
+      }))
+
+      await audioEngine.initialize()
+      await audioEngine.loadBuffer(mockArrayBuffer)
+
+      audioEngine.setSpeed(0.1)
+      expect(audioEngine.getSpeed()).toBe(0.5) // MIN_SPEED
+
+      audioEngine.setSpeed(5.0)
+      expect(audioEngine.getSpeed()).toBe(2.0) // MAX_SPEED
+    })
+
+    it('should not update if same speed', async () => {
+      await audioEngine.initialize()
+      audioEngine.setSpeed(1.0)
+      expect(audioEngine.getSpeed()).toBe(1.0) // default, no change
+    })
+
+    it('should handle setSpeed without buffer', () => {
+      expect(() => audioEngine.setSpeed(1.5)).not.toThrow()
+      expect(audioEngine.getSpeed()).toBe(1.0) // unchanged
+    })
+  })
+
+  describe('setPitch()', () => {
+    it('should update pitch and return new value', async () => {
+      const mockAudioBuffer = { duration: 10, sampleRate: 44100, numberOfChannels: 2, length: 441000, getChannelData: vi.fn(() => new Float32Array(441000)) } as any
+      mockAudioContextInstance.decodeAudioData.mockResolvedValue(mockAudioBuffer)
+      mockAudioContextInstance.createBuffer = vi.fn(() => ({
+        numberOfChannels: 2,
+        getChannelData: vi.fn(() => new Float32Array(441000)),
+        duration: 10,
+        sampleRate: 44100,
+        length: 441000,
+      }))
+
+      await audioEngine.initialize()
+      await audioEngine.loadBuffer(mockArrayBuffer)
+      audioEngine.setPitch(3)
+
+      expect(audioEngine.getPitch()).toBe(3)
+    })
+
+    it('should clamp pitch to min/max bounds', async () => {
+      const mockAudioBuffer = { duration: 10, sampleRate: 44100, numberOfChannels: 2, length: 441000, getChannelData: vi.fn(() => new Float32Array(441000)) } as any
+      mockAudioContextInstance.decodeAudioData.mockResolvedValue(mockAudioBuffer)
+      mockAudioContextInstance.createBuffer = vi.fn(() => ({
+        numberOfChannels: 2,
+        getChannelData: vi.fn(() => new Float32Array(441000)),
+        duration: 10,
+        sampleRate: 44100,
+        length: 441000,
+      }))
+
+      await audioEngine.initialize()
+      await audioEngine.loadBuffer(mockArrayBuffer)
+
+      audioEngine.setPitch(-20)
+      expect(audioEngine.getPitch()).toBe(-12) // MIN_PITCH
+
+      audioEngine.setPitch(20)
+      expect(audioEngine.getPitch()).toBe(12) // MAX_PITCH
+    })
+
+    it('should handle setPitch without buffer', () => {
+      expect(() => audioEngine.setPitch(3)).not.toThrow()
+      expect(audioEngine.getPitch()).toBe(0) // unchanged
+    })
+  })
+
+  describe('getSpeed() / getPitch()', () => {
+    it('should return default values initially', () => {
+      expect(audioEngine.getSpeed()).toBe(1.0)
+      expect(audioEngine.getPitch()).toBe(0)
     })
   })
 

@@ -9,6 +9,11 @@ export const KEYBOARD_SHORTCUTS = {
   SET_B: 'o',
   JUMP_TO_A: 'a',
   MUTE: 'm',
+  SPEED_UP: '=',
+  SPEED_DOWN: '-',
+  PITCH_UP: ']',
+  PITCH_DOWN: '[',
+  RESET_SPEED_PITCH: 'r',
 } as const
 
 export type KeyboardShortcut = typeof KEYBOARD_SHORTCUTS[keyof typeof KEYBOARD_SHORTCUTS]
@@ -32,3 +37,17 @@ export const SUPPORTED_AUDIO_FORMATS = [
 ] as const
 
 export type AudioFormat = typeof SUPPORTED_AUDIO_FORMATS[number]
+
+/**
+ * 속도/피치 제어 상수
+ */
+export const SPEED_PITCH = {
+  MIN_SPEED: 0.5,
+  MAX_SPEED: 2.0,
+  SPEED_STEP: 0.1,
+  MIN_PITCH: -12,
+  MAX_PITCH: 12,
+  PITCH_STEP: 1,
+  DEFAULT_SPEED: 1.0,
+  DEFAULT_PITCH: 0,
+} as const

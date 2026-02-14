@@ -18,7 +18,7 @@ test.describe('Visual Regression', () => {
     await page.waitForLoadState('networkidle')
 
     // Take screenshot of drag-drop zone
-    const dragDropZone = page.getByText('Drag & Drop Audio File')
+    const dragDropZone = page.getByText('Drop your audio file here')
     await expect(dragDropZone).toBeVisible()
 
     // Screenshot comparison (will establish baseline on first run)
@@ -127,8 +127,8 @@ test.describe('Visual Regression', () => {
     // Load audio
     await loadAudioFile(page)
 
-    // Screenshot of entire control panel
-    const controlPanel = page.locator('.bg-\\[\\#2a2a2a\\]').first()
+    // Screenshot of entire control panel area
+    const controlPanel = page.locator('.bg-\\[\\#141414\\]').first()
     await expect(controlPanel).toBeVisible()
 
     await expect(controlPanel).toHaveScreenshot('control-panel-layout.png', {
@@ -141,8 +141,8 @@ test.describe('Visual Regression', () => {
     // Load audio
     await loadAudioFile(page)
 
-    // Screenshot of time display
-    const timeDisplay = page.getByTestId('time-display')
+    // Screenshot of time display (use .first() since there are two time displays)
+    const timeDisplay = page.getByTestId('time-display').first()
     await expect(timeDisplay).toBeVisible()
 
     await expect(timeDisplay).toHaveScreenshot('time-display.png', {

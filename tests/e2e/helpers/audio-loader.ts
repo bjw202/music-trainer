@@ -86,5 +86,5 @@ export async function setupAudioPage(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle')
 
   // Wait for drag drop zone to be visible
-  await page.waitForSelector('text=Drag & Drop Audio File')
+  await page.waitForSelector('text=Drop your audio file here')
 }

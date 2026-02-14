@@ -92,7 +92,7 @@ test.describe('Volume Controls', () => {
 
     // When no file is loaded, controls should not be visible
     // Instead, the drag-drop zone should be visible
-    const dragDropZone = page.getByText('Drag & Drop Audio File')
+    const dragDropZone = page.getByText('Drop your audio file here')
     await expect(dragDropZone).toBeVisible()
   })
 
@@ -145,18 +145,17 @@ test.describe('Keyboard Shortcuts', () => {
     await playButton.click()
     await page.waitForTimeout(1000)
 
-    // Get current time
-    const timeDisplay = page.getByTestId('time-display')
-    const timeBefore = await timeDisplay.textContent()
+    // Get current time (first time-display is current time)
+    const timeDisplay = page.getByTestId('time-display').first()
 
     // Press Arrow Left to seek back 5 seconds
     await page.keyboard.press('ArrowLeft')
-    await page.waitForTimeout(100)
+    await page.waitForTimeout(200)
 
     const timeAfter = await timeDisplay.textContent()
 
-    // Times should be different (unless at beginning)
-    expect(timeAfter).toBeDefined()
+    // Time should be a valid format
+    expect(timeAfter).toMatch(/\d+:\d{2}/)
   })
 
   test('should seek forward with Arrow Right key', async ({ page }) => {
@@ -165,18 +164,19 @@ test.describe('Keyboard Shortcuts', () => {
     await playButton.click()
     await page.waitForTimeout(500)
 
-    // Get current time
-    const timeDisplay = page.getByTestId('time-display')
+    // Get current time (first time-display is current time)
+    const timeDisplay = page.getByTestId('time-display').first()
     const timeBefore = await timeDisplay.textContent()
 
     // Press Arrow Right to seek forward 5 seconds
     await page.keyboard.press('ArrowRight')
-    await page.waitForTimeout(100)
+    await page.waitForTimeout(200)
 
     const timeAfter = await timeDisplay.textContent()
 
-    // Times should be different
-    expect(timeAfter).toBeDefined()
+    // Time should have advanced (seek forward should move past current position)
+    expect(timeAfter).toMatch(/\d+:\d{2}/)
+    expect(timeAfter).not.toBe(timeBefore)
   })
 
   test('should prevent default scroll behavior on Arrow keys', async ({ page }) => {
@@ -250,7 +250,7 @@ test.describe('Waveform Interaction', () => {
   })
 
   test('should seek when waveform is clicked', async ({ page }) => {
-    const timeDisplay = page.getByTestId('time-display')
+    const timeDisplay = page.getByTestId('time-display').first()
     const waveformContainer = page.locator('[data-testid="waveform-container"]')
 
     // Get initial time (should be 0:00)
