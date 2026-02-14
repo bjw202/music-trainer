@@ -44,7 +44,7 @@ export type AudioFormat = typeof SUPPORTED_AUDIO_FORMATS[number]
 export const SPEED_PITCH = {
   MIN_SPEED: 0.5,
   MAX_SPEED: 2.0,
-  SPEED_STEP: 0.1,
+  SPEED_STEP: 0.01,
   MIN_PITCH: -12,
   MAX_PITCH: 12,
   PITCH_STEP: 1,

@@ -14,6 +14,7 @@ import { ABLoopDisplay } from '../ABLoop/ABLoopDisplay'
 import { SpeedPitchPanel } from '../SpeedPitch'
 import { useAudioEngine } from '../../hooks/useAudioEngine'
 import { usePlayback } from '../../hooks/usePlayback'
+import { useSpeedPitch } from '../../hooks/useSpeedPitch'
 import { useWaveform } from '../../hooks/useWaveform'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFileLoader } from '../../hooks/useFileLoader'
@@ -51,6 +52,7 @@ export function Player() {
   }, [initialize])
 
   const playback = usePlayback(engine)
+  useSpeedPitch(engine)
   const canPlay = !!buffer && isReady
 
   // 파형 클릭 시 AudioEngine의 seek 호출
@@ -249,7 +251,7 @@ export function Player() {
           {/* Keyboard shortcuts hint */}
           <div className="text-center">
             <p className="text-xs text-[#6B7280]">
-              Space: Play/Pause · S: Stop · A/B: Set Points · L: Loop · ←/→: Seek · +/-: Speed · [/]: Pitch · R: Reset
+              Space: Play/Pause · ←/→: Seek · =/- : Speed · [/]: Pitch · R: Reset
             </p>
           </div>
 

@@ -14,9 +14,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
-      soundtouch-ts:
-        specifier: ^1.1.1
-        version: 1.1.1
+      soundtouchjs:
+        specifier: ^0.3.0
+        version: 0.3.0
       wavesurfer.js:
         specifier: ^7.8.6
         version: 7.12.1
@@ -1607,8 +1607,8 @@ packages:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==}
     engines: {node: '>=18'}
 
-  soundtouch-ts@1.1.1:
-    resolution: {integrity: sha512-w1aJk1lxCtjVsi/RGNOEu67MLosKkOHrQKoBAWAtg1lvJODPfHiFqJRvicNAQpHDxdb4zl5c1kx5NSM5mqEsbA==}
+  soundtouchjs@0.3.0:
+    resolution: {integrity: sha512-P/+SwnIE4BLrMbYK8aB8+GfXRfLv3+BV8HFMrEqOuF0F9BsI3sKEN1T+kY/JqiVURcCQgr50BC8D/uVzE/GozQ==}
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
@@ -3299,7 +3299,7 @@ snapshots:
       mrmime: 2.0.1
       totalist: 3.0.1
 
-  soundtouch-ts@1.1.1: {}
+  soundtouchjs@0.3.0: {}
 
   source-map-js@1.2.1: {}
 

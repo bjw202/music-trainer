@@ -7,6 +7,7 @@ import { SPEED_PITCH } from '../utils/constants'
  * 속도/피치 제어 훅
  *
  * controlStore의 speed/pitch 상태와 AudioEngine을 연결합니다.
+ * SoundTouch 실시간 스트리밍 방식이므로 디바운스 불필요 - 즉시 반영됩니다.
  *
  * @param engine - 오디오 엔진 인스턴스
  */
@@ -14,7 +15,7 @@ export function useSpeedPitch(engine: AudioEngine | null) {
   const speed = useControlStore((state) => state.speed)
   const pitch = useControlStore((state) => state.pitch)
 
-  // speed 변경 시 엔진에 반영
+  // speed 변경 시 엔진에 즉시 반영 (디바운스 불필요)
   useEffect(() => {
     if (!engine) {
       return
@@ -22,7 +23,7 @@ export function useSpeedPitch(engine: AudioEngine | null) {
     engine.setSpeed(speed)
   }, [engine, speed])
 
-  // pitch 변경 시 엔진에 반영
+  // pitch 변경 시 엔진에 즉시 반영 (디바운스 불필요)
   useEffect(() => {
     if (!engine) {
       return
@@ -34,7 +35,7 @@ export function useSpeedPitch(engine: AudioEngine | null) {
     const { speed: currentSpeed, setSpeed } = useControlStore.getState()
     const newSpeed = Math.min(
       SPEED_PITCH.MAX_SPEED,
-      Math.round((currentSpeed + SPEED_PITCH.SPEED_STEP) * 10) / 10
+      Math.round((currentSpeed + SPEED_PITCH.SPEED_STEP) * 100) / 100
     )
     setSpeed(newSpeed)
   }, [])
@@ -43,7 +44,7 @@ export function useSpeedPitch(engine: AudioEngine | null) {
     const { speed: currentSpeed, setSpeed } = useControlStore.getState()
     const newSpeed = Math.max(
       SPEED_PITCH.MIN_SPEED,
-      Math.round((currentSpeed - SPEED_PITCH.SPEED_STEP) * 10) / 10
+      Math.round((currentSpeed - SPEED_PITCH.SPEED_STEP) * 100) / 100
     )
     setSpeed(newSpeed)
   }, [])
@@ -74,7 +75,7 @@ export function useSpeedPitch(engine: AudioEngine | null) {
    * 속도 표시 포맷: "X.Xx"
    */
   const formatSpeed = useCallback((value: number): string => {
-    return `${value.toFixed(1)}x`
+    return `${value.toFixed(2)}x`
   }, [])
 
   /**

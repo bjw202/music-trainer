@@ -20,8 +20,8 @@
 **오디오 처리**
 - Web Audio API: 브라우저 기본 오디오 API
 - wavesurfer.js 7.x: 파형 시각화 라이브러리
-- soundtouch-ts: 속도 변경 (Time-Stretch) 라이브러리
-- AudioWorklet: 메인 스레드와 분리된 오디오 처리
+- soundtouchjs: 실시간 스트리밍 방식 속도/피치 제어 라이브러리
+- ScriptProcessorNode + SimpleFilter: 실시간 오디오 스트리밍 처리
 
 **테스트**
 - Vitest: 극고속 단위/컴포넌트 테스트
@@ -71,7 +71,7 @@
 
 **장점**
 - Web Audio API와의 완벽한 호환성: Refs를 통한 AudioContext 관리
-- wavesurfer.js와 soundtouch-ts 라이브러리의 최적 지원
+- wavesurfer.js와 soundtouchjs 라이브러리의 최적 지원
 - 커뮤니티 규모 및 생태계: 오디오 플레이어 라이브러리 풍부
 - 모바일 반응형 개발 용이
 
@@ -108,7 +108,7 @@
 
 UI 상태 (필요할 때만 업데이트)
 - 재생 중/일시정지: 변경 시에만 리렌더링
-- 속도/피치 슬라이더: 사용자 상호작용 시에만 리렌더링
+- 속도/피치 +/- 버튼: 사용자 상호작용 시에만 리렌더링
 ```
 
 이렇게 분리하면 React 리렌더링 오버헤드를 크게 줄일 수 있습니다.
@@ -148,15 +148,22 @@ Ableton Live 스타일: 검정(#000000) + 네온 그린 액센트
 - tone.js: 음악 합성에 최적화, 플레이어로는 과도함
 - Howler.js: 플래시 기반 폴백, 이제 필요 없음
 
-### soundtouch-ts 선택 이유
+### soundtouchjs 선택 이유
 
 **장점**
 - SoundTouch 알고리즘: 수십 년 검증된 시간 신축(Time Stretching) 기술
-- 타입스크립트 바인딩: C++ 원본과 동등한 품질
+- 실시간 스트리밍 처리: SimpleFilter + ScriptProcessorNode로 청크 단위 실시간 변환
 - 속도와 피치 완벽 독립: 한 쪽 변경해도 다른 쪽 유지
-- 무시간 지연(Latency Free): 실시간 재생에 최적
+- 즉시 반영: tempo/pitch 변경이 다음 오디오 콜백 청크부터 즉시 적용
+- 오프라인 버퍼 재생성 불필요: 파라미터 변경 시 끊김 없이 실시간 적용
+
+**soundtouch-ts에서 전환한 이유**
+- soundtouch-ts는 오프라인 전체 버퍼 처리 방식으로 속도/피치 변경 시 전체 버퍼 재생성 필요
+- soundtouchjs는 실시간 스트리밍 방식으로 파라미터 변경이 즉시 반영
+- Web Worker 의존성 제거로 아키텍처 단순화
 
 **대안 검토**
+- soundtouch-ts: 오프라인 processBuffer() 방식, 버퍼 재생성 지연 발생
 - Librosa (Python): 백엔드 처리 필요, 레이턴시 증가
 - 직접 구현: 개발 시간 6개월 이상, 음질 보장 어려움
 
@@ -189,11 +196,13 @@ Ableton Live 스타일: 검정(#000000) + 네온 그린 액센트
 ```
 파일 소스 (File/Blob)
     ↓
-[AudioBuffer 로드] → 원본 버퍼 보관
+[AudioBuffer 로드] → 원본 버퍼를 WebAudioBufferSource에 설정
     ↓
-[SoundTouch 오프라인 처리] → processedBuffer 생성 (speed/pitch 변경 시)
+WebAudioBufferSource (원본 AudioBuffer)
     ↓
-BufferSource (processedBuffer 또는 원본 버퍼)
+SimpleFilter (SoundTouch 실시간 처리: tempo/pitch 변경)
+    ↓
+ScriptProcessorNode (SimpleFilter에서 청크 단위로 샘플 추출)
     ↓
 GainNode (마스터 볼륨)
     ↓
@@ -202,7 +211,9 @@ AnalyserNode (파형 데이터 추출)
 Destination (스피커/헤드폰)
 ```
 
-**바이패스 모드**: speed=1.0 AND pitch=0일 때 SoundTouch 처리 생략, 원본 버퍼 직접 사용
+**실시간 스트리밍 방식**: SoundTouch의 tempo/pitch 파라미터 변경 시 다음 오디오 콜백 청크부터 즉시 적용. 별도의 버퍼 재생성 없이 파라미터 변경이 실시간으로 반영됨.
+
+**시간 추적**: `simpleFilter.sourcePosition / sampleRate`로 원본 오디오 기준 현재 재생 위치를 추적
 
 **멀티 트랙 오디오 그래프 (Phase 3: 스템 믹서)**
 ```
@@ -229,33 +240,32 @@ AnalyserNode (시각화)
 Destination
 ```
 
-### SoundTouch 오프라인 버퍼 처리
+### SoundTouch 실시간 스트리밍 처리
 
-**왜 오프라인 처리 방식을 선택했나?**
-- soundtouch-ts의 `processBuffer()` API가 동기적 처리에 최적화
-- AudioWorklet 실시간 처리 대비 구현 복잡도 대폭 감소
-- 짧은 오디오 파일(연습 구간)에서 처리 시간 무시 가능
-- 원본 버퍼를 항상 보관하여 바이패스 모드 즉시 전환
+**왜 실시간 스트리밍 방식을 선택했나?**
+- soundtouchjs의 SimpleFilter + ScriptProcessorNode 조합으로 청크 단위 실시간 처리
+- 오프라인 버퍼 재생성이 불필요하여 속도/피치 변경이 즉시 반영
+- Web Worker 의존성 제거로 아키텍처 단순화
+- 원본 AudioBuffer를 WebAudioBufferSource에 설정하고 SimpleFilter가 실시간으로 변환
 
-**처리 흐름 (src/core/worklets/soundtouch-processor.ts)**
-- `processBuffer(buffer, speed, pitch, context)`: AudioBuffer를 SoundTouch로 처리
-- `calculateProcessedDuration(duration, speed)`: 처리 후 재생 시간 계산
-- 바이패스: speed=1.0 AND pitch=0이면 원본 버퍼 반환
+**처리 흐름 (src/core/AudioEngine.ts)**
+- `SoundTouch` 인스턴스: tempo(속도), pitch(피치) 파라미터 설정
+- `SimpleFilter(source, pipe)`: WebAudioBufferSource를 SoundTouch 파이프라인에 연결
+- `ScriptProcessorNode.onaudioprocess`: SimpleFilter에서 청크 단위 샘플을 추출하여 출력
+- 시간 추적: `simpleFilter.sourcePosition / sampleRate`로 원본 시간 기준 위치 계산
 
 **속도/피치 변경 시 동작**
 ```
 1. 사용자가 속도를 1.0x → 0.8x로 변경
 2. AudioEngine.setSpeed(0.8) 호출
-3. 현재 재생 위치 스냅샷 저장 (원본 시간 기준)
-4. rebuildProcessedBuffer()로 새 버퍼 동기 생성
-5. 재생 중이었다면 새 버퍼로 재시작 (위치 복원)
-6. 시간 추적: toProcessedTime / toOriginalTime으로 변환
+3. SoundTouch 인스턴스의 tempo 파라미터를 0.8로 설정
+4. 다음 오디오 콜백(ScriptProcessorNode.onaudioprocess)부터 즉시 적용
+5. 별도의 버퍼 재생성이나 재시작 없이 연속 재생 유지
 ```
 
-**시간 추적 공식**
+**시간 추적**
 ```
-processedTime = originalTime / currentSpeed
-originalTime = processedTime * currentSpeed
+currentTime = simpleFilter.sourcePosition / sampleRate
 ```
 
 ---
@@ -281,12 +291,12 @@ React 상태로 관리하지 않고 직접 참조
 - Web Audio API 성능 저하 없음
 ```
 
-### 2. AudioWorklet 멀티 스레드 처리
+### 2. ScriptProcessorNode 실시간 스트리밍
 
-Web Audio API는 독립적인 오디오 스레드에서 실행:
-- 메인 스레드 blocking 없음
-- UI 애니메이션 60fps 유지 가능
-- 오디오 처리 안정성 보장
+SoundTouch SimpleFilter를 통한 실시간 오디오 처리:
+- ScriptProcessorNode가 오디오 콜백에서 SimpleFilter로부터 청크 단위 샘플 추출
+- tempo/pitch 파라미터 변경이 다음 콜백부터 즉시 반영
+- 오프라인 버퍼 재생성 없이 연속 재생 유지
 
 ### 3. 파형 렌더링 최적화
 

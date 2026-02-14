@@ -43,6 +43,12 @@ export function useAudioEngine() {
 
       await engine.initialize()
       engineRef.current = engine
+
+      // E2E 테스트에서 엔진 내부 상태를 검증할 수 있도록 노출
+      if (import.meta.env.DEV) {
+        ;(window as unknown as Record<string, unknown>).__audioEngine = engine
+      }
+
       setIsReady(true)
       setError(null)
     } catch (err) {
@@ -107,6 +113,9 @@ export function useAudioEngine() {
     return () => {
       engineRef.current?.dispose().catch(console.error)
       engineRef.current = null
+      if (import.meta.env.DEV) {
+        delete (window as unknown as Record<string, unknown>).__audioEngine
+      }
       setIsReady(false)
     }
   }, [])
