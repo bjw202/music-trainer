@@ -14,11 +14,11 @@ export function StopButton({ onStop, disabled = false }: StopButtonProps) {
       onClick={onStop}
       disabled={disabled}
       className={`
-        p-4 rounded-full transition-colors
+        w-12 h-12 rounded-xl transition-colors flex items-center justify-center
         ${
           disabled
-            ? 'text-[#5a5a5a] cursor-not-allowed'
-            : 'text-[#e0e0e0] hover:text-[#ff3b30] focus:outline-none focus:ring-2 focus:ring-[#ff3b30]'
+            ? 'bg-[#1E1E1E] text-[#4B5563] cursor-not-allowed'
+            : 'bg-[#1E1E1E] text-[#9CA3AF] hover:text-[#F5F5F5] hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-[#818CF8]'
         }
       `}
       aria-label="Stop"

@@ -11,8 +11,10 @@ interface AppLayoutProps {
  */
 export function AppLayout({ children }: AppLayoutProps) {
   return (
-    <div className="min-h-screen bg-[#1a1a1a] flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-4xl">{children}</div>
+    <div className="min-h-screen bg-[#0F0F0F] flex flex-col items-center justify-center px-10 py-6">
+      <div className="w-full max-w-4xl bg-[#141414] border border-[#1E1E1E] rounded-2xl p-8">
+        {children}
+      </div>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { AppLayout } from '../Layout/AppLayout'
 import { Header } from '../Layout/Header'
 import { DragDropZone } from '../FileLoader/DragDropZone'
@@ -27,7 +27,7 @@ import { usePlayerStore } from '../../stores/playerStore'
  * 모든 컴포넌트를 통합하고 오디오 엔진 생명주크를 관리합니다.
  */
 export function Player() {
-  const { isReady, error, initialize, loadFile } = useAudioEngine()
+  const { engine, isReady, error, initialize, loadFile } = useAudioEngine()
   const fileName = useAudioStore((state) => state.fileName)
   const buffer = useAudioStore((state) => state.buffer)
   const volume = useControlStore((state) => state.volume)
@@ -49,10 +49,18 @@ export function Player() {
     initialize()
   }, [initialize])
 
-  const playback = usePlayback(null)
+  const playback = usePlayback(engine)
   const canPlay = !!buffer && isReady
 
-  const { containerRef } = useWaveform()
+  // 파형 클릭 시 AudioEngine의 seek 호출
+  const handleWaveformSeek = useCallback((time: number) => {
+    if (engine) {
+      console.log('[Player] Waveform seek to:', time)
+      engine.seek(time)
+    }
+  }, [engine])
+
+  const { setContainerRef } = useWaveform({ onSeek: handleWaveformSeek })
 
   // 키보드 단축키
   useKeyboardShortcuts(currentTime, duration, canPlay)
@@ -68,11 +76,14 @@ export function Player() {
     fileInputRef,
     error: fileError,
   } = useFileLoader(async (file) => {
+    console.log('[Player] onFileSelect called, isReady:', isReady)
     if (!isReady) {
+      console.log('[Player] AudioEngine not ready, skipping file load')
       return
     }
 
     try {
+      console.log('[Player] Calling loadFile')
       await loadFile(file)
     } catch (error) {
       console.error('Failed to load file:', error)
@@ -94,28 +105,58 @@ export function Player() {
           onClick={handleClick}
           error={fileError || error}
         >
-          <div className="text-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-16 h-16 mx-auto mb-4 text-[#a0a0a0]"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
+          <div className="text-center space-y-6">
+            {/* Upload icon with gradient */}
+            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#818CF8] to-[#60A5FA] flex items-center justify-center">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-10 h-10 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                />
+              </svg>
+            </div>
+
+            {/* Text */}
+            <div className="space-y-2">
+              <p className="text-lg font-semibold text-[#F5F5F5]">
+                Drop your audio file here
+              </p>
+              <p className="text-sm text-[#9CA3AF]">
+                or click to browse from your computer
+              </p>
+            </div>
+
+            {/* Browse button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleClick()
+              }}
+              className="px-6 py-3 bg-[#818CF8] text-white rounded-xl font-medium hover:bg-[#818CF8]/90 transition-colors"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 19V6l12-3-12 3 7-7m0 0a9 9 0 1118 0 9 9 0 01-18 0"
-              />
-            </svg>
-            <p className="text-lg text-[#e0e0e0] mb-2">
-              Drag & Drop Audio File
-            </p>
-            <p className="text-sm text-[#a0a0a0]">
-              or click to select (MP3, WAV, M4A, OGG)
-            </p>
+              Browse Files
+            </button>
+
+            {/* Format tags */}
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              {['MP3', 'WAV', 'M4A', 'OGG'].map((format) => (
+                <span
+                  key={format}
+                  className="px-3 py-1 bg-[#1A1A1A] text-[#9CA3AF] text-xs font-medium rounded-md"
+                >
+                  {format}
+                </span>
+              ))}
+            </div>
           </div>
           <FileSelector
             fileInputRef={fileInputRef}
@@ -123,40 +164,57 @@ export function Player() {
           />
         </DragDropZone>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* 웨이브폼 */}
-          <Waveform containerRef={containerRef} hasAudio={hasAudio} />
+          <Waveform setContainerRef={setContainerRef} hasAudio={hasAudio} />
 
-          {/* 컨트롤 바 */}
-          <div className="bg-[#2a2a2a] rounded-lg p-6 space-y-4">
-            {/* 메인 컨트롤 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <PlayButton
-                  isPlaying={isPlaying}
-                  onToggle={playback.togglePlayPause}
-                  disabled={!canPlay}
-                />
-                <StopButton onStop={playback.stop} disabled={!canPlay} />
-                <TimeDisplay currentTime={currentTime} duration={duration} />
-              </div>
+          {/* Time display row */}
+          <div className="flex items-center justify-between px-2">
+            <TimeDisplay currentTime={currentTime} duration={duration} isCurrentTime />
+            <TimeDisplay currentTime={duration} duration={duration} isCurrentTime={false} />
+          </div>
 
-              <div className="flex items-center gap-4">
-                <VolumeSlider
-                  volume={volume}
-                  onVolumeChange={setVolume}
-                  disabled={!canPlay}
-                />
-                <MuteButton
-                  muted={muted}
-                  onToggle={toggleMute}
-                  disabled={!canPlay}
-                />
-              </div>
+          {/* Main controls card */}
+          <div className="bg-[#141414] border border-[#1E1E1E] rounded-2xl p-6">
+            <div className="flex items-center justify-center gap-6">
+              <StopButton onStop={playback.stop} disabled={!canPlay} />
+              <PlayButton
+                isPlaying={isPlaying}
+                onToggle={playback.togglePlayPause}
+                disabled={!canPlay}
+              />
+            </div>
+          </div>
+
+          {/* Volume row */}
+          <div className="bg-[#141414] border border-[#1E1E1E] rounded-xl p-4">
+            <div className="flex items-center justify-center gap-4">
+              <VolumeSlider
+                volume={volume}
+                onVolumeChange={setVolume}
+                disabled={!canPlay}
+              />
+              <span className="text-sm font-mono text-[#9CA3AF] w-12 text-right">
+                {volume}%
+              </span>
+              <MuteButton
+                muted={muted}
+                onToggle={toggleMute}
+                disabled={!canPlay}
+              />
+            </div>
+          </div>
+
+          {/* A-B Loop section */}
+          <div className="space-y-3">
+            {/* Label row */}
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-sm font-semibold text-[#F5F5F5]">A-B Loop</h3>
+              <ABLoopDisplay />
             </div>
 
-            {/* A-B 루프 컨트롤 */}
-            <div className="flex items-center justify-between">
+            {/* 3-column buttons row */}
+            <div className="grid grid-cols-3 gap-3">
               <ABLoopControls
                 loopA={loopA}
                 loopB={loopB}
@@ -166,15 +224,21 @@ export function Player() {
                 onToggleLoop={toggleLoop}
                 disabled={!canPlay}
               />
-              <ABLoopDisplay />
             </div>
           </div>
 
-          {/* 새 파일 로딩 버튼 */}
+          {/* Keyboard shortcuts hint */}
+          <div className="text-center">
+            <p className="text-xs text-[#6B7280]">
+              Space: Play/Pause · S: Stop · A/B: Set Points · L: Loop · ←/→: Seek
+            </p>
+          </div>
+
+          {/* Load New File button */}
           <div className="text-center">
             <button
               onClick={handleClick}
-              className="px-6 py-2 bg-[#2a2a2a] text-[#e0e0e0] rounded hover:bg-[#3a3a3a] transition-colors"
+              className="px-6 py-2 bg-[#1E1E1E] text-[#F5F5F5] rounded-xl hover:bg-[#2A2A2A] transition-colors font-medium"
               aria-label="Load new audio file"
             >
               Load New File

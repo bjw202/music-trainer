@@ -8,20 +8,42 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Dark theme colors
-        background: {
-          primary: '#1a1a1a',
-          secondary: '#2a2a2a',
+        // New design system colors
+        page: {
+          bg: '#0F0F0F',
         },
-        text: {
-          primary: '#e0e0e0',
-          secondary: '#a0a0a0',
+        card: {
+          DEFAULT: '#141414',
+        },
+        control: {
+          bg: '#1E1E1E',
+        },
+        surface: '#1A1A1A',
+        border: {
+          subtle: '#2A2A2A',
+          card: '#1E1E1E',
         },
         accent: {
-          blue: '#007aff',
-          red: '#ff3b30',
-          green: '#34c759',
+          primary: '#818CF8',
+          blue: '#60A5FA',
+          green: '#34D399',
+          amber: '#FBBF24',
+          coral: '#FF6B6B',
         },
+        text: {
+          primary: '#F5F5F5',
+          secondary: '#9CA3AF',
+          tertiary: '#6B7280',
+          disabled: '#4B5563',
+        },
+      },
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
+      borderRadius: {
+        '2xl': '16px',
+        'xl': '12px',
       },
     },
   },

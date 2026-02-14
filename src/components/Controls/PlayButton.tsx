@@ -15,11 +15,11 @@ export function PlayButton({ isPlaying, onToggle, disabled = false }: PlayButton
       onClick={onToggle}
       disabled={disabled}
       className={`
-        p-4 rounded-full transition-colors
+        w-16 h-16 rounded-full transition-colors flex items-center justify-center
         ${
           disabled
-            ? 'text-[#5a5a5a] cursor-not-allowed'
-            : 'text-[#e0e0e0] hover:text-[#007aff] focus:outline-none focus:ring-2 focus:ring-[#007aff]'
+            ? 'bg-[#1E1E1E] text-[#4B5563] cursor-not-allowed'
+            : 'bg-[#818CF8] text-white hover:bg-[#818CF8]/90 focus:outline-none focus:ring-2 focus:ring-[#818CF8]'
         }
       `}
       aria-label={isPlaying ? 'Pause' : 'Play'}

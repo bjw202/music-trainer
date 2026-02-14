@@ -22,6 +22,7 @@ export function FileSelector({
       onChange={onChange}
       className="hidden"
       aria-label="Select audio file"
+      data-testid="file-input"
     />
   )
 }

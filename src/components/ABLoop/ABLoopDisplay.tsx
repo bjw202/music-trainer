@@ -9,23 +9,36 @@ export function ABLoopDisplay() {
   const { loopA, loopB, loopEnabled } = loopStore()
 
   if (loopA === null || loopB === null) {
-    return null
+    return (
+      <div
+        className="flex items-center gap-2 px-3 py-1.5 bg-[#1A1A1A] rounded-lg"
+        data-testid="loop-display"
+      >
+        <div className="w-2 h-2 rounded-full bg-[#6B7280]" />
+        <span className="text-xs font-medium text-[#6B7280]">Inactive</span>
+      </div>
+    )
   }
 
   return (
     <div
       data-testid="loop-display"
       className={`
-        px-3 py-1 rounded text-sm font-mono
+        flex items-center gap-2 px-3 py-1.5 rounded-lg
         ${
           loopEnabled
-            ? 'bg-[#34c759]/20 text-[#34c759]'
-            : 'bg-[#2a2a2a] text-[#a0a0a0]'
+            ? 'bg-[#34D399]/20 text-[#34D399]'
+            : 'bg-[#1A1A1A] text-[#6B7280]'
         }
       `}
       aria-label={`Loop from ${loopA}s to ${loopB}s ${loopEnabled ? 'enabled' : 'disabled'}`}
     >
-      A-B Loop {loopEnabled ? 'ON' : 'OFF'}
+      <div
+        className={`w-2 h-2 rounded-full ${loopEnabled ? 'bg-[#34D399]' : 'bg-[#6B7280]'}`}
+      />
+      <span className="text-xs font-medium">
+        {loopEnabled ? 'Active' : 'Inactive'}
+      </span>
     </div>
   )
 }
