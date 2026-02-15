@@ -1,8 +1,8 @@
 ---
 id: SPEC-API-001
 title: Backend Foundation and YouTube Support
-version: 1.0.0
-status: planned
+version: 1.1.0
+status: implemented
 priority: high
 created: 2026-02-15
 tags: backend, fastapi, youtube, yt-dlp, api, frontend-integration
@@ -16,7 +16,7 @@ related_specs:
 
 ## 개요
 
-Music Trainer 프로젝트의 Phase 3 핵심 기능으로, Python FastAPI 기반 백엔드 서버를 구축하고 YouTube URL에서 MP3 오디오를 추출하여 프론트엔드에 전달하는 전체 파이프라인을 구현한다. 프론트엔드에는 YouTube URL 입력 UI를 추가하여 사용자가 URL을 입력하면 변환 진행률을 확인하고, 완료된 오디오를 자동으로 로드하여 재생할 수 있도록 한다.
+Music Trainer 프로젝트의 Phase 3 핵심 기능으로, Python FastAPI 기반 백엔드 서버를 구축하고 YouTube URL에서 MP3 오디오를 추출하여 프론트엔드에 전달하는 전체 파이프라인을 구현한다. 프론트엔드에는 YouTube URL 입력 UI를 추가하여 사용자가 URL을 입력하면 변환 진행률을 확인하고, 완료된 오디오를 자동으로 로드하여 재생할 수 있도록 한다. 또한, 오디오가 재생 중인 상태에서 사용자가 "Load New File" 버튼을 클릭하면 YouTube URL 입력과 파일 Drag & Drop을 모두 지원하는 모달을 통해 새 오디오를 로드할 수 있다.
 
 ---
 
@@ -190,6 +190,33 @@ Music Trainer 프로젝트의 Phase 3 핵심 기능으로, Python FastAPI 기반
 - 파형(Waveform) 렌더링 자동 시작
 - 사용자 개입 없이 재생 준비 완료
 
+#### REQ-API-001-17: 재생 중 파일 교체 모달
+
+**WHEN** 오디오가 재생 중인 상태에서 사용자가 "Load New File" 버튼을 클릭하면 **THEN** 시스템은 새 오디오를 로드할 수 있는 모달을 표시해야 한다.
+
+- 모달은 YouTube URL 입력 섹션과 파일 Drag & Drop 영역을 모두 포함한다.
+- YouTube URL 입력은 기존 YouTubeSection 컴포넌트를 재사용한다.
+- 파일 Drag & Drop은 MP3, WAV, M4A, OGG 형식을 지원한다.
+- 파일 브라우저 버튼을 제공한다.
+- 기존 다크 테마와 일관된 디자인을 적용한다.
+
+#### REQ-API-001-18: 모달 상호작용
+
+시스템은 **항상** 모달에 대한 표준적인 닫기 상호작용을 지원해야 한다.
+
+- ESC 키로 모달 닫기
+- 모달 외부(Backdrop) 클릭으로 닫기
+- 닫기(X) 버튼 제공
+- 모달 열림 시 body 스크롤 방지
+
+#### REQ-API-001-19: 파일 로드 후 자동 닫기
+
+**WHEN** 모달을 통해 새 오디오 파일이 성공적으로 로드되면 **THEN** 모달은 자동으로 닫히고 새 오디오가 재생 준비 상태로 전환되어야 한다.
+
+- 오디오 버퍼 변경 감지를 통한 자동 닫기
+- 새 파일은 기존 AudioEngine.loadFile()을 통해 로드
+- 파형(Waveform) 자동 업데이트
+
 ### 모듈 4: 프론트엔드-백엔드 통합 (Frontend-Backend Integration)
 
 #### REQ-API-001-14: API 클라이언트 모듈
@@ -275,6 +302,8 @@ src/
       ProgressBar.tsx        # 변환 진행률 바
       ErrorDisplay.tsx       # 에러 표시 컴포넌트
       index.ts
+    FileLoader/
+      LoadAudioModal.tsx     # 재생 중 새 오디오 로드 모달
   stores/
     youtubeStore.ts          # YouTube 변환 상태 관리
   hooks/
@@ -310,3 +339,6 @@ src/
 | REQ-API-001-14 | 모듈 4 | `src/api/client.ts` | 단위 테스트 |
 | REQ-API-001-15 | 모듈 4 | `src/api/youtube.ts` | 단위 테스트 |
 | REQ-API-001-16 | 모듈 4 | `src/stores/youtubeStore.ts` | 단위 테스트 |
+| REQ-API-001-17 | 모듈 3 | `src/components/FileLoader/LoadAudioModal.tsx` | E2E 테스트 |
+| REQ-API-001-18 | 모듈 3 | `src/components/FileLoader/LoadAudioModal.tsx` | E2E 테스트 |
+| REQ-API-001-19 | 모듈 3 | `src/components/FileLoader/LoadAudioModal.tsx` | E2E 테스트 |
