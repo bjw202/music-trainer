@@ -113,7 +113,7 @@ export function Player() {
       {/* YouTube URL 변환 섹션 - 오디오가 로드되지 않았을 때만 표시 */}
       {!hasAudio && (
         <div className="mb-4">
-          <YouTubeSection />
+          <YouTubeSection onFileReady={loadFile} />
         </div>
       )}
 

@@ -68,7 +68,7 @@ async def convert_youtube(
 
     # 동영상 메타데이터 검증
     try:
-        await youtube_service.validate_video(body.url)
+        video_info = await youtube_service.validate_video(body.url)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -77,6 +77,10 @@ async def convert_youtube(
 
     # 태스크 생성 및 백그라운드 변환 시작
     task_id = youtube_service.create_task()
+    # 검증 단계에서 얻은 제목을 태스크에 설정
+    task = youtube_service.get_task(task_id)
+    if task is not None:
+        task["title"] = video_info.get("title", "audio")
     asyncio.create_task(youtube_service.start_conversion(body.url, task_id))
 
     return ConvertResponse(
@@ -173,7 +177,7 @@ async def download_file(task_id: str) -> FileResponse:
         )
 
     task = youtube_service.get_task(task_id)
-    title = task.get("title", "audio") if task else "audio"
+    title = (task.get("title") or "audio") if task else "audio"
     safe_title = "".join(c for c in title if c.isalnum() or c in (" ", "-", "_")).strip()
     if not safe_title:
         safe_title = "audio"

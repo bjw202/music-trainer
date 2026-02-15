@@ -1,7 +1,5 @@
 import { useCallback, useRef } from 'react'
 import { useYoutubeStore } from '../stores/youtubeStore'
-import { useAudioStore } from '../stores/audioStore'
-import { usePlayerStore } from '../stores/playerStore'
 import {
   isValidYouTubeUrl,
   convertYouTubeUrl,
@@ -15,8 +13,10 @@ import { ApiRequestError } from '../api/client'
  *
  * youtubeStore와 YouTube API를 연결하여
  * URL 입력 -> 변환 -> SSE 진행률 -> 오디오 로딩 플로우를 관리합니다.
+ *
+ * @param onFileReady - 변환된 오디오 파일을 AudioEngine에 로드하는 콜백
  */
-export function useYouTubeConvert() {
+export function useYouTubeConvert(onFileReady?: (file: File) => Promise<void>) {
   const cleanupRef = useRef<(() => void) | null>(null)
 
   const url = useYoutubeStore((state) => state.url)
@@ -50,19 +50,17 @@ export function useYouTubeConvert() {
           useYoutubeStore.getState().updateProgress(event.percent, stageText)
         },
         // 변환 완료
-        async (event) => {
+        async () => {
           useYoutubeStore.getState().setComplete()
           cleanupRef.current = null
 
-          // 변환된 오디오 파일 다운로드 및 디코딩
+          // 변환된 오디오 파일 다운로드
           try {
             const taskId = useYoutubeStore.getState().taskId
             if (!taskId) return
 
-            const downloadUrl =
-              event.download_url ?? getDownloadUrl(taskId)
-
-            useAudioStore.getState().setLoading(true)
+            // 항상 getDownloadUrl 사용 (SSE의 download_url은 상대 경로)
+            const downloadUrl = getDownloadUrl(taskId)
 
             const audioResponse = await fetch(downloadUrl)
             if (!audioResponse.ok) {
@@ -70,21 +68,15 @@ export function useYouTubeConvert() {
             }
 
             const arrayBuffer = await audioResponse.arrayBuffer()
-
-            // AudioContext를 사용하여 AudioBuffer로 디코딩
-            const audioContext = new AudioContext()
-            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-            await audioContext.close()
-
-            // audioStore에 버퍼 설정 (기존 Player 컴포넌트가 자동으로 업데이트됨)
             const fileName = useYoutubeStore.getState().videoTitle ?? 'YouTube Audio'
-            useAudioStore.getState().setFile(
-              new File([new Blob([arrayBuffer])], `${fileName}.mp3`, {
-                type: 'audio/mpeg',
-              })
-            )
-            useAudioStore.getState().setBuffer(audioBuffer)
-            usePlayerStore.getState().setDuration(audioBuffer.duration)
+            const file = new File([arrayBuffer], `${fileName}.mp3`, {
+              type: 'audio/mpeg',
+            })
+
+            // AudioEngine의 loadFile을 통해 로드 (재생 가능 상태로 설정)
+            if (onFileReady) {
+              await onFileReady(file)
+            }
 
             // YouTube 스토어 초기화
             useYoutubeStore.getState().reset()
@@ -94,7 +86,6 @@ export function useYouTubeConvert() {
                 ? err.message
                 : '오디오 파일을 로드할 수 없습니다'
             useYoutubeStore.getState().setError(message)
-            useAudioStore.getState().setLoading(false)
           }
         },
         // 에러
@@ -116,7 +107,7 @@ export function useYouTubeConvert() {
 
       useYoutubeStore.getState().setError(message)
     }
-  }, [])
+  }, [onFileReady])
 
   /**
    * 변환 취소

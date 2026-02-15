@@ -14,7 +14,7 @@ interface ProgressBarProps {
  */
 export function ProgressBar({ progress, stage, onCancel }: ProgressBarProps) {
   return (
-    <div className="space-y-3" data-testid="youtube-progress">
+    <div className="space-y-3" data-testid="youtube-progress-bar">
       {/* 진행률 바 */}
       <div className="w-full h-2 bg-zinc-700 rounded-full overflow-hidden">
         <div

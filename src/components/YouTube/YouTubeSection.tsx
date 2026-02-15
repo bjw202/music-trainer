@@ -3,15 +3,20 @@ import { ProgressBar } from './ProgressBar'
 import { ErrorDisplay } from './ErrorDisplay'
 import { useYouTubeConvert } from '../../hooks/useYouTubeConvert'
 
+interface YouTubeSectionProps {
+  /** 변환된 오디오 파일을 AudioEngine에 로드하는 콜백 */
+  onFileReady?: (file: File) => Promise<void>
+}
+
 /**
  * YouTube 변환 섹션 컨테이너 컴포넌트
  *
  * YouTubeInput, ProgressBar, ErrorDisplay를 조합하여
  * YouTube 변환 상태에 따라 적절한 UI를 조건부 렌더링합니다.
  */
-export function YouTubeSection() {
+export function YouTubeSection({ onFileReady }: YouTubeSectionProps) {
   const { status, progress, stage, error, convertUrl, cancelConversion } =
-    useYouTubeConvert()
+    useYouTubeConvert(onFileReady)
 
   const isConverting = status === 'loading' || status === 'converting'
 
