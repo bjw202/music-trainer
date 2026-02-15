@@ -633,7 +633,6 @@ test.describe('Speed/Pitch Keyboard Shortcuts', () => {
 
   test('+/- keys should change speed by 0.1x increments', async ({ page }) => {
     const speedSlider = page.getByTestId('speed-slider')
-    const speedDisplay = page.getByTestId('speed-display')
 
     // Default speed is 1.0x
     const beforeValue = parseFloat(await speedSlider.inputValue())
@@ -658,7 +657,6 @@ test.describe('Speed/Pitch Keyboard Shortcuts', () => {
 
   test('[/] keys should change pitch by 1 semitone', async ({ page }) => {
     const pitchSlider = page.getByTestId('pitch-slider')
-    const pitchDisplay = page.getByTestId('pitch-display')
 
     // Default pitch is 0
     const beforeValue = parseInt(await pitchSlider.inputValue())

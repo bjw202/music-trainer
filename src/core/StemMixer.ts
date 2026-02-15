@@ -365,6 +365,11 @@ export class StemMixer {
     this.pauseTime = 0
     this.stopTimeUpdates()
 
+    // MixerAudioSource 위치 리셋
+    if (this.mixerSource) {
+      this.mixerSource.position = 0
+    }
+
     // 소스 위치를 처음으로 리셋
     if (this.simpleFilter) {
       this.simpleFilter.sourcePosition = 0
@@ -392,6 +397,11 @@ export class StemMixer {
     // 시간 클램핑
     const clampedTime = Math.max(0, Math.min(time, this.stemBuffers.vocals.duration))
     const samplePosition = Math.floor(clampedTime * this.stemBuffers.vocals.sampleRate)
+
+    // MixerAudioSource 위치 동기화 (extract()에서 this.position으로 stem 위치를 설정하므로 필수)
+    if (this.mixerSource) {
+      this.mixerSource.position = samplePosition
+    }
 
     // SimpleFilter의 sourcePosition 설정
     if (this.simpleFilter) {
@@ -441,10 +451,24 @@ export class StemMixer {
   }
 
   /**
+   * Stem 음소거 직접 설정
+   */
+  setStemMuted(stemName: StemName, value: boolean): void {
+    this.muted[stemName] = value
+  }
+
+  /**
    * Stem 솔로 토글
    */
   toggleStemSolo(stemName: StemName): void {
     this.solo[stemName] = !this.solo[stemName]
+  }
+
+  /**
+   * Stem 솔로 직접 설정
+   */
+  setStemSolo(stemName: StemName, value: boolean): void {
+    this.solo[stemName] = value
   }
 
   /**
@@ -685,17 +709,24 @@ class MixerAudioSource {
   /**
    * 샘플 추출 (4개 stem 혼합)
    *
+   * soundtouchjs SimpleFilter가 전달하는 position 파라미터를 사용하여
+   * 올바른 위치에서 샘플을 추출합니다.
+   *
    * @param output - 출력 버퍼 (인터리브된 스테레오)
    * @param samples - 추출할 샘플 수
+   * @param position - 읽을 위치 (SimpleFilter에서 전달, optional)
    * @returns 실제 추출한 샘플 수
    */
-  extract(output: Float32Array, samples: number): number {
+  extract(output: Float32Array, samples: number, position?: number): number {
     const stems: StemName[] = ['vocals', 'drums', 'bass', 'other']
     let minExtracted = samples
 
     // 임시 버퍼 (각 stem용)
     const tempBuffer = new Float32Array(samples * 2)
     const mixedBuffer = new Float32Array(samples * 2)
+
+    // SimpleFilter가 전달한 position 사용, 없으면 내부 position 사용
+    const readPosition = position !== undefined ? position : this.position
 
     // 각 stem에서 샘플 추출하고 혼합
     for (const stemName of stems) {
@@ -704,11 +735,9 @@ class MixerAudioSource {
         continue
       }
 
-      // 현재 위치 설정
-      stemSource.source.position = this.position
-
-      // 샘플 추출
-      const extracted = stemSource.source.extract(tempBuffer, samples, 2)
+      // 올바른 readPosition을 3번째 인자로 전달하여 WebAudioBufferSource가
+      // 올바른 위치에서 읽도록 함
+      const extracted = stemSource.source.extract(tempBuffer, samples, readPosition)
       minExtracted = Math.min(minExtracted, extracted)
 
       // 유효한 게인 계산
@@ -725,8 +754,8 @@ class MixerAudioSource {
       output[i] = mixedBuffer[i]
     }
 
-    // 위치 업데이트
-    this.position += minExtracted
+    // 내부 position도 업데이트 (seek 등에서 참조)
+    this.position = readPosition + minExtracted
 
     return minExtracted
   }

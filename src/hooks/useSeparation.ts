@@ -70,7 +70,7 @@ export function useSeparation(): UseSeparationReturn {
    * 분리 완료 대기
    */
   const waitForCompletion = useCallback(async (_taskId: string): Promise<void> => {
-    const maxAttempts = 600 // 최대 10분 (1초마다 체크)
+    const maxAttempts = 1800 // 최대 30분 (1초마다 체크, CPU 기반 Demucs 분리 시간 고려)
     let attempts = 0
 
     return new Promise((resolve, reject) => {

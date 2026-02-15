@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useRef, useMemo } from 'react'
 import { AppLayout } from '../Layout/AppLayout'
 import { Header } from '../Layout/Header'
 import { DragDropZone } from '../FileLoader/DragDropZone'
@@ -20,6 +20,7 @@ import { StemMixerPanel } from '../StemMixer/StemMixerPanel'
 import { useAudioEngine } from '../../hooks/useAudioEngine'
 import { usePlayback } from '../../hooks/usePlayback'
 import { useSpeedPitch } from '../../hooks/useSpeedPitch'
+import { useStemMixer } from '../../hooks/useStemMixer'
 import { useWaveform } from '../../hooks/useWaveform'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFileLoader } from '../../hooks/useFileLoader'
@@ -29,14 +30,23 @@ import { useControlStore } from '../../stores/controlStore'
 import { useLoopStore } from '../../stores/loopStore'
 import { usePlayerStore } from '../../stores/playerStore'
 import { useStemStore } from '../../stores/stemStore'
+import type { StemName } from '../../stores/stemStore'
 
 /**
  * 메인 플레이어 컴포넌트
  *
- * 모든 컴포넌트를 통합하고 오디오 엔진 생명주크를 관리합니다.
+ * 모든 컴포넌트를 통합하고 오디오 엔진 생명주기를 관리합니다.
+ * AudioEngine(일반 모드)과 StemMixer(Stem 모드) 간의 전환을 처리합니다.
  */
 export function Player() {
   const { engine, isReady, error, initialize, loadFile } = useAudioEngine()
+  const {
+    mixer,
+    isReady: isMixerReady,
+    initialize: initMixer,
+    loadStems,
+  } = useStemMixer()
+
   const fileName = useAudioStore((state) => state.fileName)
   const buffer = useAudioStore((state) => state.buffer)
   const file = useAudioStore((state) => state.file)
@@ -60,15 +70,29 @@ export function Player() {
   const separationProgress = useStemStore((state) => state.separationProgress)
   const separationError = useStemStore((state) => state.errorMessage)
   const setStemMode = useStemStore((state) => state.setStemMode)
+  const stems = useStemStore((state) => state.stems)
 
   // 모달 상태 관리
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  // Stem 초기화 진행 중 플래그 (중복 초기화 방지)
+  const stemInitializingRef = useRef(false)
+  // Stem이 로드 완료되어 mixer에서 재생 가능한지 추적
+  const [isStemPlayable, setIsStemPlayable] = useState(false)
 
   // Stem 분리 훅
   const {
     startSeparation,
     retrySeparation,
   } = useSeparation()
+
+  // 활성 엔진 결정: Stem 모드이고 mixer가 준비되면 StemMixer 사용
+  const activeEngine = useMemo(() => {
+    if (isStemMode && isMixerReady && mixer && isStemPlayable) {
+      return mixer
+    }
+    return engine
+  }, [isStemMode, isMixerReady, mixer, isStemPlayable, engine])
 
   /**
    * Stem 분리 시작 핸들러
@@ -100,17 +124,102 @@ export function Player() {
     initialize()
   }, [initialize])
 
-  const playback = usePlayback(engine)
-  useSpeedPitch(engine)
-  const canPlay = !!buffer && isReady
+  // 활성 엔진 기반으로 재생 제어 및 속도/피치 연결
+  const playback = usePlayback(activeEngine)
+  useSpeedPitch(activeEngine)
 
-  // 파형 클릭 시 AudioEngine의 seek 호출
-  const handleWaveformSeek = useCallback((time: number) => {
-    if (engine) {
-      console.log('[Player] Waveform seek to:', time)
-      engine.seek(time)
+  // canPlay: 현재 활성 엔진에 따라 재생 가능 여부 결정
+  const canPlay = isStemMode && isStemPlayable
+    ? isMixerReady
+    : !!buffer && isReady
+
+  // Stem 모드 전환 시 StemMixer 초기화 및 stem 로드
+  useEffect(() => {
+    if (!isStemMode || separationStatus !== 'completed') {
+      return
     }
-  }, [engine])
+
+    // 모든 stem이 로드되었는지 확인
+    if (!stems.vocals || !stems.drums || !stems.bass || !stems.other) {
+      return
+    }
+
+    // 이미 초기화 중이거나 준비 완료된 경우 스킵
+    if (stemInitializingRef.current || isStemPlayable) {
+      return
+    }
+
+    const setupMixer = async () => {
+      stemInitializingRef.current = true
+      try {
+        // 현재 재생 중이면 AudioEngine 일시정지
+        if (usePlayerStore.getState().isPlaying && engine) {
+          engine.pause()
+          usePlayerStore.getState().pause()
+        }
+
+        // StemMixer 초기화 및 Stem 데이터 로드
+        await initMixer()
+        await loadStems(stems as Record<StemName, AudioBuffer>)
+
+        // 준비 완료 표시
+        // speed/pitch는 useSpeedPitch(activeEngine) 이펙트가 엔진 전환 시 자동 동기화
+        // volume은 아래 볼륨 동기화 이펙트가 mixer/isMixerReady 변경 시 자동 동기화
+        setIsStemPlayable(true)
+      } catch (err) {
+        console.error('[Player] Failed to setup StemMixer:', err)
+      } finally {
+        stemInitializingRef.current = false
+      }
+    }
+
+    setupMixer()
+  }, [isStemMode, separationStatus, stems, engine, initMixer, loadStems, isStemPlayable, mixer])
+
+  // Stem 모드 종료 시: StemMixer 일시정지, AudioEngine 위치 동기화
+  useEffect(() => {
+    if (isStemMode) {
+      return
+    }
+
+    // Stem 모드가 아닌 경우: mixer가 재생 중이면 일시정지
+    if (mixer && isMixerReady) {
+      const savedTime = mixer.getCurrentTime()
+      if (mixer.getIsPlaying()) {
+        mixer.pause()
+      }
+
+      // AudioEngine의 위치를 StemMixer의 현재 위치로 동기화
+      if (engine && savedTime > 0) {
+        engine.seek(savedTime)
+        usePlayerStore.getState().setCurrentTime(savedTime)
+      }
+
+      // 재생 상태 정리 (일시정지 상태로)
+      if (usePlayerStore.getState().isPlaying) {
+        usePlayerStore.getState().pause()
+      }
+    }
+  }, [isStemMode, mixer, isMixerReady, engine])
+
+  // 볼륨 변경 시 활성 엔진에 동기화
+  // AudioEngine은 useAudioEngine 훅에서 자체 동기화하지만,
+  // StemMixer는 별도로 동기화 필요
+  useEffect(() => {
+    if (!isStemMode || !mixer || !isMixerReady) {
+      return
+    }
+
+    mixer.setVolume(muted ? 0 : volume / 100)
+  }, [volume, muted, isStemMode, mixer, isMixerReady])
+
+  // 파형 클릭 시 활성 엔진의 seek 호출
+  const handleWaveformSeek = useCallback((time: number) => {
+    if (activeEngine) {
+      console.log('[Player] Waveform seek to:', time)
+      activeEngine.seek(time)
+    }
+  }, [activeEngine])
 
   const { setContainerRef, setCurrentTime: setWaveformTime, setLoopRegion } = useWaveform({ onSeek: handleWaveformSeek })
 
@@ -145,6 +254,12 @@ export function Player() {
     }
 
     try {
+      // 새 파일 로드 시 stem 모드 및 관련 상태 초기화
+      if (isStemMode) {
+        setStemMode(false)
+      }
+      setIsStemPlayable(false)
+
       console.log('[Player] Calling loadFile')
       await loadFile(file)
     } catch (error) {

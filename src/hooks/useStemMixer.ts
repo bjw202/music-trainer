@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { StemMixer } from '../core/StemMixer'
 import { useStemStore } from '../stores/stemStore'
 import { usePlayerStore } from '../stores/playerStore'
@@ -27,7 +27,8 @@ export interface UseStemMixerReturn {
  */
 export function useStemMixer(): UseStemMixerReturn {
   const mixerRef = useRef<StemMixer | null>(null)
-  const isReadyRef = useRef(false)
+  // useState를 사용하여 mixer 준비 상태 변경 시 리렌더링 트리거
+  const [isReady, setIsReady] = useState(false)
 
   // Store 상태 구독
   const gains = useStemStore((state) => state.gains)
@@ -38,10 +39,16 @@ export function useStemMixer(): UseStemMixerReturn {
   const setDuration = usePlayerStore((state) => state.setDuration)
   const stopPlayer = usePlayerStore((state) => state.stop)
 
-  // A-B 루프 상태
+  // A-B 루프 상태는 콜백 내에서 최신 값 참조를 위해 ref 사용
+  const loopRef = useRef({ loopEnabled: false, loopA: null as number | null, loopB: null as number | null })
   const loopA = useLoopStore((state) => state.loopA)
   const loopB = useLoopStore((state) => state.loopB)
   const loopEnabled = useLoopStore((state) => state.loopEnabled)
+
+  // 루프 상태를 ref로 동기화 (콜백에서 최신 값 참조)
+  useEffect(() => {
+    loopRef.current = { loopEnabled, loopA, loopB }
+  }, [loopEnabled, loopA, loopB])
 
   /**
    * StemMixer 초기화
@@ -54,18 +61,19 @@ export function useStemMixer(): UseStemMixerReturn {
     try {
       const mixer = new StemMixer({
         onTimeUpdate: (time: number) => {
-          // A-B 루프 처리
-          if (loopEnabled && loopA !== null && loopB !== null) {
+          // A-B 루프 처리 (ref에서 최신 값 읽기)
+          const { loopEnabled: le, loopA: la, loopB: lb } = loopRef.current
+          if (le && la !== null && lb !== null) {
             // 루프 영역을 벗어나면 A 지점으로 되돌리기
-            if (time >= loopB) {
-              mixerRef.current?.seek(loopA)
-              setCurrentTime(loopA)
+            if (time >= lb) {
+              mixerRef.current?.seek(la)
+              setCurrentTime(la)
               return
             }
             // 루프 영역보다 앞서있으면 A 지점으로 이동
-            if (time < loopA) {
-              mixerRef.current?.seek(loopA)
-              setCurrentTime(loopA)
+            if (time < la) {
+              mixerRef.current?.seek(la)
+              setCurrentTime(la)
               return
             }
           }
@@ -79,12 +87,12 @@ export function useStemMixer(): UseStemMixerReturn {
 
       await mixer.initialize()
       mixerRef.current = mixer
-      isReadyRef.current = true
+      setIsReady(true)
     } catch (error) {
       console.error('[useStemMixer] Failed to initialize:', error)
       throw error
     }
-  }, [setCurrentTime, stopPlayer, loopEnabled, loopA, loopB])
+  }, [setCurrentTime, stopPlayer])
 
   /**
    * Stem AudioBuffers 로드
@@ -118,7 +126,7 @@ export function useStemMixer(): UseStemMixerReturn {
     try {
       await mixer.dispose()
       mixerRef.current = null
-      isReadyRef.current = false
+      setIsReady(false)
     } catch (error) {
       console.error('[useStemMixer] Failed to dispose:', error)
     }
@@ -136,7 +144,7 @@ export function useStemMixer(): UseStemMixerReturn {
     }
   }, [gains])
 
-  // stemStore mute 상태 변경 시 StemMixer에 동기화
+  // stemStore mute 상태 변경 시 StemMixer에 직접 설정 (toggle이 아닌 set)
   useEffect(() => {
     const mixer = mixerRef.current
     if (!mixer) {
@@ -144,14 +152,11 @@ export function useStemMixer(): UseStemMixerReturn {
     }
 
     for (const stemName of ['vocals', 'drums', 'bass', 'other'] as StemName[]) {
-      // StemMixer는 내부 상태를 직접 관리하므로 toggle 호출
-      if (muted[stemName]) {
-        mixer.toggleStemMute(stemName)
-      }
+      mixer.setStemMuted(stemName, muted[stemName])
     }
   }, [muted])
 
-  // stemStore solo 상태 변경 시 StemMixer에 동기화
+  // stemStore solo 상태 변경 시 StemMixer에 직접 설정 (toggle이 아닌 set)
   useEffect(() => {
     const mixer = mixerRef.current
     if (!mixer) {
@@ -159,10 +164,7 @@ export function useStemMixer(): UseStemMixerReturn {
     }
 
     for (const stemName of ['vocals', 'drums', 'bass', 'other'] as StemName[]) {
-      // StemMixer는 내부 상태를 직접 관리하므로 toggle 호출
-      if (solo[stemName]) {
-        mixer.toggleStemSolo(stemName)
-      }
+      mixer.setStemSolo(stemName, solo[stemName])
     }
   }, [solo])
 
@@ -177,7 +179,7 @@ export function useStemMixer(): UseStemMixerReturn {
 
   return {
     mixer: mixerRef.current,
-    isReady: isReadyRef.current,
+    isReady,
     initialize,
     loadStems,
     dispose,

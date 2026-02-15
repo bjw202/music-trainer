@@ -48,12 +48,12 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
  * 엔드포인트 경로
  */
 const ENDPOINTS = {
-  SEPARATE: `${API_BASE_URL}/api/separate`,
-  PROGRESS: (taskId: string) => `${API_BASE_URL}/api/separate/${taskId}/progress`,
+  SEPARATE: `${API_BASE_URL}/api/v1/separate`,
+  PROGRESS: (taskId: string) => `${API_BASE_URL}/api/v1/separate/${taskId}/progress`,
   DOWNLOAD: (taskId: string, stemName: string) =>
-    `${API_BASE_URL}/api/separate/${taskId}/stems/${stemName}`,
+    `${API_BASE_URL}/api/v1/separate/${taskId}/stems/${stemName}`,
   DOWNLOAD_ALL: (taskId: string) =>
-    `${API_BASE_URL}/api/separate/${taskId}/stems`,
+    `${API_BASE_URL}/api/v1/separate/${taskId}/stems`,
 } as const
 
 /**

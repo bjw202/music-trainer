@@ -3,8 +3,6 @@ import {
   KEYBOARD_SHORTCUTS,
   TIME_INTERVALS,
   SUPPORTED_AUDIO_FORMATS,
-  type KeyboardShortcut,
-  type AudioFormat
 } from '@/utils/constants'
 
 describe('constants', () => {

@@ -124,10 +124,20 @@ def cleanup_expired_tasks(tasks: dict, expiry_seconds: int = FILE_EXPIRY_SECONDS
     now = time.time()
     expired_ids: list[str] = []
 
+    # 완료/실패 상태 (YouTubeService: complete/error, SeparationService: completed/failed)
+    terminal_statuses = ("complete", "completed", "error", "failed")
+
     for task_id, task_data in tasks.items():
-        if task_data.get("status") not in ("complete", "error"):
+        # dict와 dataclass 모두 지원
+        if isinstance(task_data, dict):
+            status = task_data.get("status")
+            created_at = task_data.get("_created_at", 0)
+        else:
+            status = getattr(task_data, "status", None)
+            created_at = getattr(task_data, "_created_at", 0)
+
+        if status not in terminal_statuses:
             continue
-        created_at = task_data.get("_created_at", 0)
         if created_at and now - created_at > expiry_seconds:
             expired_ids.append(task_id)
 

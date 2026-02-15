@@ -1,17 +1,19 @@
 import { useCallback, useEffect } from 'react'
 import { AudioEngine } from '../core/AudioEngine'
+import { StemMixer } from '../core/StemMixer'
 import { useControlStore } from '../stores/controlStore'
 import { SPEED_PITCH } from '../utils/constants'
 
 /**
  * 속도/피치 제어 훅
  *
- * controlStore의 speed/pitch 상태와 AudioEngine을 연결합니다.
+ * controlStore의 speed/pitch 상태와 오디오 엔진을 연결합니다.
+ * AudioEngine과 StemMixer 모두 동일한 setSpeed/setPitch 인터페이스를 제공합니다.
  * SoundTouch 실시간 스트리밍 방식이므로 디바운스 불필요 - 즉시 반영됩니다.
  *
- * @param engine - 오디오 엔진 인스턴스
+ * @param engine - 오디오 엔진 인스턴스 (AudioEngine 또는 StemMixer)
  */
-export function useSpeedPitch(engine: AudioEngine | null) {
+export function useSpeedPitch(engine: AudioEngine | StemMixer | null) {
   const speed = useControlStore((state) => state.speed)
   const pitch = useControlStore((state) => state.pitch)
 

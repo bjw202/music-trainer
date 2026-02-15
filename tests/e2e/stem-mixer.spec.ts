@@ -630,3 +630,218 @@ test.describe('Accessibility', () => {
     await expect(vocalsSolo).toHaveAttribute('aria-pressed', 'true')
   })
 })
+
+// ============================================================================
+// Scenario 8: Engine Switching Verification
+// ============================================================================
+
+test.describe('Scenario 8: Engine Switching Verification', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupAudioPage(page)
+    await loadAudioFile(page)
+  })
+
+  /**
+   * Helper: Read stemStore state via window.__STEM_STORE__
+   */
+  async function getStemStoreState(page: import('@playwright/test').Page) {
+    return page.evaluate(() => {
+      const store = (window as unknown as Record<string, unknown>).__STEM_STORE__ as {
+        getState: () => {
+          gains: Record<string, number>
+          muted: Record<string, boolean>
+          solo: Record<string, boolean>
+          isStemMode: boolean
+          separationStatus: string
+        }
+      } | undefined
+
+      if (!store) {
+        return null
+      }
+
+      const state = store.getState()
+      return {
+        gains: { ...state.gains },
+        muted: { ...state.muted },
+        solo: { ...state.solo },
+        isStemMode: state.isStemMode,
+        separationStatus: state.separationStatus,
+      }
+    })
+  }
+
+  test('should initialize stemStore gains at default when entering stem mode', async ({ page }) => {
+    // Set completed separation state with stems and enter stem mode
+    await setStemStoreState(page, {
+      separationStatus: 'completed',
+      separationProgress: 100,
+      isStemMode: true,
+      stems: {
+        vocals: true,
+        drums: true,
+        bass: true,
+        other: true,
+      },
+    })
+
+    await page.waitForTimeout(500)
+
+    // Verify stemStore gains are all at default 1.0
+    const state = await getStemStoreState(page)
+    expect(state).not.toBeNull()
+    expect(state!.gains.vocals).toBe(1.0)
+    expect(state!.gains.drums).toBe(1.0)
+    expect(state!.gains.bass).toBe(1.0)
+    expect(state!.gains.other).toBe(1.0)
+
+    // Verify stem mode is active
+    expect(state!.isStemMode).toBe(true)
+  })
+
+  test('should reflect stem gain changes in store when slider is adjusted', async ({ page }) => {
+    // Enter stem mode
+    await setStemStoreState(page, {
+      separationStatus: 'completed',
+      separationProgress: 100,
+      isStemMode: true,
+      stems: {
+        vocals: true,
+        drums: true,
+        bass: true,
+        other: true,
+      },
+    })
+
+    await page.waitForTimeout(500)
+
+    // Change vocals slider to 50 (which maps to gain 0.5)
+    const vocalsSlider = page.getByTestId('stem-volume-vocals')
+    await vocalsSlider.fill('50')
+
+    await page.waitForTimeout(300)
+
+    // Verify the store gain reflects the change (slider 50 -> gain 0.5)
+    const state = await getStemStoreState(page)
+    expect(state).not.toBeNull()
+    expect(state!.gains.vocals).toBeCloseTo(0.5, 1)
+
+    // Other stems should remain at default 1.0
+    expect(state!.gains.drums).toBe(1.0)
+    expect(state!.gains.bass).toBe(1.0)
+    expect(state!.gains.other).toBe(1.0)
+  })
+
+  test('should update muted state in store when mute is toggled', async ({ page }) => {
+    // Enter stem mode
+    await setStemStoreState(page, {
+      separationStatus: 'completed',
+      separationProgress: 100,
+      isStemMode: true,
+      stems: {
+        vocals: true,
+        drums: true,
+        bass: true,
+        other: true,
+      },
+    })
+
+    await page.waitForTimeout(500)
+
+    // Verify initial state: no stems muted
+    let state = await getStemStoreState(page)
+    expect(state).not.toBeNull()
+    expect(state!.muted.vocals).toBe(false)
+    expect(state!.muted.drums).toBe(false)
+
+    // Mute vocals
+    const vocalsMute = page.getByTestId('stem-mute-vocals')
+    await vocalsMute.click()
+
+    await page.waitForTimeout(200)
+
+    // Verify store reflects the mute
+    state = await getStemStoreState(page)
+    expect(state!.muted.vocals).toBe(true)
+    expect(state!.muted.drums).toBe(false)
+    expect(state!.muted.bass).toBe(false)
+    expect(state!.muted.other).toBe(false)
+  })
+
+  test('should update solo state in store when solo is toggled', async ({ page }) => {
+    // Enter stem mode
+    await setStemStoreState(page, {
+      separationStatus: 'completed',
+      separationProgress: 100,
+      isStemMode: true,
+      stems: {
+        vocals: true,
+        drums: true,
+        bass: true,
+        other: true,
+      },
+    })
+
+    await page.waitForTimeout(500)
+
+    // Verify initial state: no stems soloed
+    let state = await getStemStoreState(page)
+    expect(state).not.toBeNull()
+    expect(state!.solo.vocals).toBe(false)
+
+    // Solo vocals
+    const vocalsSolo = page.getByTestId('stem-solo-vocals')
+    await vocalsSolo.click()
+
+    await page.waitForTimeout(200)
+
+    // Verify store reflects the solo
+    state = await getStemStoreState(page)
+    expect(state!.solo.vocals).toBe(true)
+    expect(state!.solo.drums).toBe(false)
+    expect(state!.solo.bass).toBe(false)
+    expect(state!.solo.other).toBe(false)
+  })
+
+  test('should transition isStemMode state when switching modes', async ({ page }) => {
+    // Initially not in stem mode
+    let state = await getStemStoreState(page)
+    expect(state).not.toBeNull()
+    expect(state!.isStemMode).toBe(false)
+
+    // Set completed state and enter stem mode
+    await setStemStoreState(page, {
+      separationStatus: 'completed',
+      separationProgress: 100,
+      isStemMode: true,
+      stems: {
+        vocals: true,
+        drums: true,
+        bass: true,
+        other: true,
+      },
+    })
+
+    await page.waitForTimeout(500)
+
+    // Verify stem mode is active
+    state = await getStemStoreState(page)
+    expect(state!.isStemMode).toBe(true)
+
+    // Verify mixer panel is visible
+    await expect(page.getByTestId('stem-mixer-panel')).toBeVisible()
+
+    // Exit stem mode via Exit Stem Mixer button
+    const exitButton = page.getByRole('button', { name: /exit stem mixer/i })
+    await exitButton.click()
+
+    await page.waitForTimeout(300)
+
+    // Verify stem mode is deactivated
+    state = await getStemStoreState(page)
+    expect(state!.isStemMode).toBe(false)
+
+    // Verify mixer panel is hidden
+    await expect(page.getByTestId('stem-mixer-panel')).not.toBeVisible()
+  })
+})

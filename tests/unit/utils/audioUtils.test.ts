@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { validateAudioFormat, fileToArrayBuffer } from '@/utils/audioUtils'
-import { SUPPORTED_AUDIO_FORMATS } from '@/utils/constants'
 
 describe('validateAudioFormat', () => {
   it('should return true for MP3 files', () => {

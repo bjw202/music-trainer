@@ -9,8 +9,11 @@ import asyncio
 import logging
 from pathlib import Path
 
+import zipfile
+import io
+
 from fastapi import APIRouter, HTTPException, Request, status, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sse_starlette.sse import EventSourceResponse
 
 from app.models.schemas import (
@@ -248,5 +251,52 @@ async def download_stem(
         filename=f"{stem_name}.wav",
         headers={
             "Content-Disposition": f'attachment; filename="{stem_name}.wav"',
+        },
+    )
+
+
+@router.get("/{task_id}/stems")
+async def download_all_stems(task_id: str) -> StreamingResponse:
+    """분리된 모든 스템 파일을 ZIP으로 다운로드합니다.
+
+    Args:
+        task_id: 태스크 ID.
+
+    Returns:
+        ZIP 파일 응답 (4개 스템 WAV 파일 포함).
+
+    Raises:
+        HTTPException: 태스크를 찾을 수 없거나 스템 파일이 없을 때(404).
+    """
+    # 태스크 조회
+    task = separation_service.get_task(task_id)
+    if task is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="태스크를 찾을 수 없습니다.",
+        )
+
+    # 스템 파일 확인
+    if task.stems is None or len(task.stems) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="스템 파일을 찾을 수 없습니다.",
+        )
+
+    # ZIP 파일 생성
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for stem_name, stem_path in task.stems.items():
+            if stem_path.exists():
+                zip_file.write(stem_path, f"{stem_name}.wav")
+
+    zip_buffer.seek(0)
+
+    return StreamingResponse(
+        iter([zip_buffer.getvalue()]),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="stems_{task_id}.zip"',
         },
     )
