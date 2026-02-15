@@ -65,6 +65,16 @@ export function LoadAudioModal({
     }
   }, [isOpen, onClose])
 
+  // Backdrop 클릭으로 모달 닫기
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.target === e.currentTarget) {
+        onClose()
+      }
+    },
+    [onClose]
+  )
+
   // 파일 로더 훅
   const {
     isDragging,
@@ -92,16 +102,6 @@ export function LoadAudioModal({
   if (!isOpen) {
     return null
   }
-
-  // Backdrop 클릭으로 모달 닫기
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.target === e.currentTarget) {
-        onClose()
-      }
-    },
-    [onClose]
-  )
 
   return (
     <div
