@@ -33,21 +33,24 @@
 - ESLint: 코드 품질 검사
 - Prettier: 자동 코드 포맷팅
 
-### 백엔드 (Backend) - Phase 3
+### 백엔드 (Backend)
 
 **웹 프레임워크**
-- Python 3.12+: 최신 Python with asyncio 개선
+- Python 3.13+: 최신 Python with asyncio 개선
 - FastAPI: 비동기 웹 프레임워크 (자동 OpenAPI 문서 생성)
 - Uvicorn: ASGI 웹 서버
 
 **오디오 처리**
 - Demucs: Meta의 AI 기반 음원 분리 모델
+- torchaudio: PyTorch 오디오 처리 라이브러리
+- torchcodec 0.10.0: torchaudio 필수 의존성 (오디오 디코딩)
+- yt-dlp: YouTube 오디오 추출
 - PyDub: 오디오 파일 처리
 - NumPy: 수치 계산
 
 **데이터베이스** (선택)
 - PostgreSQL: 작업 이력 및 사용자 데이터 (필요시)
-- Redis: 캐싱 및 작업 큐 (선택)
+- Redis: 분리 결과 캐싱 (선택)
 
 **배포**
 - Docker: 컨테이너 기반 배포
@@ -167,7 +170,7 @@ Ableton Live 스타일: 검정(#000000) + 네온 그린 액센트
 - Librosa (Python): 백엔드 처리 필요, 레이턴시 증가
 - 직접 구현: 개발 시간 6개월 이상, 음질 보장 어려움
 
-### Demucs 선택 이유 (Phase 3)
+### Demucs 선택 이유 (Phase 4)
 
 **장점**
 - Meta(Facebook) 개발: 대규모 자금 지원, 지속적 개선
@@ -177,7 +180,7 @@ Ableton Live 스타일: 검정(#000000) + 네온 그린 액센트
 
 **음질 성능**
 - 음원 분리 정확도: 92% (2024년 기준)
-- 실시간 성능: 곡 길이의 50% 시간에 처리 가능 (GPU 사용 시)
+- CPU 처리 성능: 곡 길이의 2~5배 시간 소요 (서버 CPU 사양에 따라 다름)
 
 **대안 검토**
 - Spleeter (Deezer): 더 빠름 (4 악기만 지원, 음질 낮음)
@@ -215,29 +218,19 @@ Destination (스피커/헤드폰)
 
 **시간 추적**: `simpleFilter.sourcePosition / sampleRate`로 원본 오디오 기준 현재 재생 위치를 추적
 
-**멀티 트랙 오디오 그래프 (Phase 3: 스템 믹서)**
+**멀티 트랙 오디오 그래프 (Phase 4: 스템 믹서 - 구현 완료)**
 ```
-분리된 악기별 소스
-├─ 보컬 Source
-│  └─ GainNode (0~1.0)
-├─ 드럼 Source
-│  └─ GainNode (0~1.0)
-├─ 베이스 Source
-│  └─ GainNode (0~1.0)
-└─ 기타 Source
-   └─ GainNode (0~1.0)
-    ↓
-ChannelMerger (모든 채널 병합)
-    ↓
-TimeStretch Worklet (마스터 속도)
-    ↓
-PitchShift Worklet (마스터 피치)
-    ↓
-GainNode (마스터 볼륨)
-    ↓
-AnalyserNode (시각화)
-    ↓
-Destination
+분리된 스템 AudioBuffer (4 stereo buffers from Demucs)
+  |-- vocals: MixerAudioSource -> gain (개별 볼륨)
+  |-- drums:  MixerAudioSource -> gain (개별 볼륨)
+  |-- bass:   MixerAudioSource -> gain (개별 볼륨)
+  |-- other:  MixerAudioSource -> gain (개별 볼륨)
+  v
+ScriptProcessorNode (onaudioprocess: 수동 믹싱 + SoundTouch 피드)
+  v
+SimpleFilter(SoundTouch) -- 마스터 tempo/pitch
+  v
+GainNode (마스터 볼륨) -> AnalyserNode -> Destination
 ```
 
 ### SoundTouch 실시간 스트리밍 처리
@@ -394,12 +387,12 @@ SoundTouch SimpleFilter를 통한 실시간 오디오 처리:
 - 이미지 최적화: WebP 자동 변환
 - 번들 분석: 번들 사이즈 모니터링
 
-### 백엔드 - Docker + Railway (Phase 3)
+### 백엔드 - Docker + Railway
 
 **Dockerfile**
 ```
-기본 이미지: python:3.12-slim
-의존성: FastAPI, Uvicorn, Demucs, PyDub
+기본 이미지: python:3.13-slim
+의존성: FastAPI, Uvicorn, Demucs, PyTorch (CPU), yt-dlp, torchaudio
 포트: 8000 (FastAPI)
 ```
 
@@ -408,10 +401,11 @@ SoundTouch SimpleFilter를 통한 실시간 오디오 처리:
 - 환경 변수: .env 파일 관리
 - 로그 모니터링: Railway 대시보드
 
-**GPU 가속 (선택)**
-- Demucs CPU 처리: 곡 길이의 50% 시간 소요
-- GPU 처리: 곡 길이의 10% 시간 소요
-- Railway GPU 옵션 또는 AWS EC2 g4dn 인스턴스
+**CPU 기반 처리 (비용 우선)**
+- Demucs CPU 처리: 곡 길이의 2~5배 시간 소요
+- 비용 효율: GPU 인스턴스 대비 월 운영비 80% 이상 절감
+- Railway 또는 Fly.io CPU 인스턴스 (2~4 vCPU, 4~8GB RAM)
+- 향후 수요 증가 시 GPU 옵션 검토 가능
 
 ---
 
@@ -428,11 +422,14 @@ SoundTouch SimpleFilter를 통한 실시간 오디오 처리:
 
 **requirements.txt**
 ```
-fastapi==0.109.0
-uvicorn==0.27.0
-demucs==4.0.1
-pydub==0.25.1
-numpy==1.24.3
+fastapi==0.129.0+
+uvicorn
+demucs==4.x
+pydub
+numpy
+torchaudio
+torchcodec==0.10.0
+yt-dlp
 ```
 
 **버전 고정**
@@ -536,9 +533,16 @@ Demucs 처리 시간 측정
 ### Phase 2 → Phase 3
 
 - FastAPI 백엔드 추가
-- Demucs 통합
-- 스템 믹서 UI 구현
-- 클라우드 저장소 연동 (선택)
+- YouTube 변환 기능 구현
+- 재생 중 파일 교체 모달 추가
+
+### Phase 3 → Phase 4
+
+- Demucs AI 음원 분리 통합
+- 스템 믹서 오디오 엔진 구현 (StemMixer.ts)
+- 스템 믹서 UI 구현 (StemMixerPanel, StemTrack)
+- 분리 API 엔드포인트 (POST /api/v1/separate, SSE 진행률, 스템 다운로드)
+- 파일 해시 기반 캐싱으로 재분리 방지
 
 ---
 

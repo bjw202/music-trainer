@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **E2E 테스트**: 스템 믹서 전체 시나리오 테스트
   - 32개 테스트 케이스 (Mock API + Web Audio 검증)
 
+### Fixed
+
+- torchcodec 0.10.0 설치 (torchaudio 2.10.0 필수 의존성)
+- Demucs apply_model segment=12 파라미터 제거 (모델 기본값 7.8초 사용)
+- cleanup_service: SeparationTask dataclass 지원 (dict + dataclass 호환)
+- useSeparation: CPU 기반 Demucs 분리 타임아웃 10분 → 30분 증가
+
 ### Technical Details
 
 - **Backend**: Demucs 4.x, PyTorch (CPU), FastAPI SSE

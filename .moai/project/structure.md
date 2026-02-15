@@ -5,6 +5,8 @@
 ```
 guitar-mp3-trainer-v2/                # 프로젝트 루트 (React SPA, Vite + TypeScript 기반)
 ├── src/
+│   ├── api/                          # 백엔드 API 클라이언트
+│   │   └── separation.ts             # 분리 API 클라이언트 (업로드, SSE 구독, 다운로드)
 │   ├── components/                   # UI 컴포넌트 계층
 │   │   ├── Player/                   # 메인 플레이어 컨테이너
 │   │   │   ├── Player.tsx            # 플레이어 메인 컴포넌트
@@ -30,6 +32,11 @@ guitar-mp3-trainer-v2/                # 프로젝트 루트 (React SPA, Vite + T
 │   │   │   ├── ABLoopDisplay.tsx
 │   │   │   ├── ABLoopControls.tsx
 │   │   │   └── index.ts
+│   │   ├── StemMixer/                # 스템 믹서 UI
+│   │   │   ├── StemMixerPanel.tsx    # 스템 믹서 패널 컨테이너
+│   │   │   ├── StemTrack.tsx         # 개별 스템 트랙 (볼륨/솔로/뮤트)
+│   │   │   ├── SeparationButton.tsx  # 분리 시작 버튼
+│   │   │   └── SeparationProgress.tsx # 분리 진행률 표시
 │   │   ├── FileLoader/               # 파일 로딩 UI
 │   │   │   ├── DragDropZone.tsx
 │   │   │   ├── FileSelector.tsx
@@ -42,6 +49,8 @@ guitar-mp3-trainer-v2/                # 프로젝트 루트 (React SPA, Vite + T
 │   ├── core/                         # 오디오 엔진 (React와 독립)
 │   │   ├── AudioEngine.ts            # Web Audio API 래퍼
 │   │   │   # AudioContext 관리, soundtouchjs 실시간 스트리밍, 노드 생성/제거
+│   │   ├── StemMixer.ts              # 멀티트랙 스템 믹서 오디오 엔진
+│   │   │   # MixerAudioSource → SimpleFilter → ScriptProcessorNode
 │   │   ├── WaveformRenderer.ts       # Canvas 기반 파형 렌더러
 │   │   │   # requestAnimationFrame 기반 실시간 렌더링
 │   │   ├── ABLoopManager.ts          # A-B 루프 로직
@@ -54,11 +63,15 @@ guitar-mp3-trainer-v2/                # 프로젝트 루트 (React SPA, Vite + T
 │   │   │   # 재생 중/일시정지, 현재 시간, 전체 길이
 │   │   ├── controlStore.ts           # 제어 상태
 │   │   │   # 속도, 피치, 볼륨
+│   │   ├── stemStore.ts              # 스템 분리/믹서 상태 관리
+│   │   │   # 분리 상태, 스템 데이터, 믹서 볼륨/솔로/뮤트
 │   │   └── loopStore.ts              # A-B 루프 상태
 │   │       # A 지점, B 지점, 루프 활성화 상태
 │   ├── hooks/                        # 커스텀 React 훅
 │   │   ├── useAudioEngine.ts         # 오디오 엔진 초기화 및 정리
 │   │   ├── useSpeedPitch.ts          # 속도/피치 제어 로직 (soundtouchjs 연동)
+│   │   ├── useStemMixer.ts           # StemMixer 래퍼 훅
+│   │   ├── useSeparation.ts          # 분리 프로세스 관리 훅
 │   │   ├── useKeyboardShortcuts.ts   # 키보드 단축키 처리
 │   │   ├── useFileLoader.ts          # 파일 로딩 로직
 │   │   ├── usePlayback.ts            # 재생 제어
@@ -85,6 +98,7 @@ guitar-mp3-trainer-v2/                # 프로젝트 루트 (React SPA, Vite + T
 │   ├── unit/                         # Vitest 단위 테스트
 │   │   ├── core/                     # 오디오 엔진 테스트
 │   │   │   ├── AudioEngine.test.ts
+│   │   │   ├── StemMixer.test.ts     # StemMixer 단위 테스트 (14개)
 │   │   │   ├── WaveformRenderer.test.ts
 │   │   │   └── ABLoopManager.test.ts
 │   │   ├── stores/                   # Zustand 스토어 테스트
@@ -106,6 +120,7 @@ guitar-mp3-trainer-v2/                # 프로젝트 루트 (React SPA, Vite + T
 │       ├── speed-pitch.spec.ts
 │       ├── abloop.spec.ts
 │       ├── compound-independence.spec.ts
+│       ├── stem-mixer.spec.ts        # 스템 믹서 E2E 테스트
 │       ├── audio-processing.spec.ts
 │       ├── worker-processing.spec.ts
 │       ├── worker-logs.spec.ts
@@ -120,7 +135,8 @@ guitar-mp3-trainer-v2/                # 프로젝트 루트 (React SPA, Vite + T
 │   ├── project/                      # 이 디렉토리
 │   │   ├── product.md                # 제품 정의
 │   │   ├── structure.md              # 프로젝트 구조 (현재 파일)
-│   │   └── tech.md                   # 기술 스택
+│   │   ├── tech.md                   # 기술 스택
+│   │   └── testing-strategy.md       # 테스트 전략
 │   ├── specs/                        # SPEC 문서
 │   ├── config/                       # MoAI 설정
 │   └── docs/                         # 생성된 문서
@@ -145,35 +161,25 @@ guitar-mp3-trainer-v2/                # 프로젝트 루트 (React SPA, Vite + T
 ├── .gitignore                        # Git 무시 파일
 └── .mcp.json                         # MCP 서버 설정
 
-backend/                              # Python FastAPI (Phase 3 - 미구현)
+backend/                              # Python FastAPI 백엔드 서버
 ├── app/
-│   ├── main.py                       # FastAPI 앱 진입점
+│   ├── main.py                       # FastAPI 앱 진입점 (health, youtube, separation 라우터)
 │   ├── config.py                     # 환경설정
 │   ├── routes/
-│   │   ├── separation.py             # 음원 분리 엔드포인트
-│   │   │   # POST /api/separate - 음원 분리 요청
-│   │   │   # GET /api/separate/{job_id} - 분리 상태 조회
-│   │   │   # GET /api/separate/{job_id}/download - 분리 결과 다운로드
-│   │   └── health.py                 # 헬스 체크
+│   │   ├── health.py                 # 헬스 체크 엔드포인트
+│   │   ├── youtube.py                # YouTube 변환 엔드포인트
+│   │   └── separation.py             # 음원 분리 엔드포인트
+│   │       # POST /api/v1/separate - 파일 업로드 및 분리 시작
+│   │       # GET /api/v1/separate/{task_id}/progress - SSE 진행률
+│   │       # GET /api/v1/separate/{task_id}/stems/{stem_name} - 스템 다운로드
 │   ├── services/
-│   │   ├── demucs_service.py         # Demucs 통합 서비스
-│   │   ├── cache_service.py          # 캐싱 서비스
-│   │   └── worker_queue.py           # 작업 큐
-│   ├── utils/
-│   │   ├── audio_utils.py            # 오디오 처리 유틸
-│   │   └── validators.py             # 입력 검증
-│   ├── models/
-│   │   ├── schemas.py                # Pydantic 스키마
-│   │   └── database.py               # 데이터베이스 모델 (선택)
+│   │   ├── youtube_service.py        # yt-dlp 래퍼, 비동기 다운로드
+│   │   ├── separation_service.py     # Demucs 래퍼, 파일 해시 캐싱, 동시처리 제한
+│   │   └── cleanup_service.py        # 임시 파일/태스크 정리 (10분 주기)
 │   └── __init__.py
-├── tests/
-│   ├── test_demucs_service.py
-│   ├── test_separation_api.py
-│   └── conftest.py                   # Pytest 설정
+├── tests/                            # pytest 테스트 (65개)
 ├── requirements.txt                  # Python 의존성
-├── Dockerfile                        # Docker 컨테이너 정의
-├── docker-compose.yml                # Docker Compose (선택)
-└── .env.example                      # 환경변수 템플릿
+└── Dockerfile                        # Docker 컨테이너 정의
 ```
 
 ---
@@ -198,6 +204,7 @@ backend/                              # Python FastAPI (Phase 3 - 미구현)
 
 이 계층은 React 렌더 사이클과 완전히 분리되어 있습니다:
 - AudioEngine: Web Audio API 컨텍스트, soundtouchjs 실시간 스트리밍, ScriptProcessorNode + SimpleFilter 기반 신호 라우팅
+- StemMixer: 멀티트랙 스템 믹서 오디오 엔진, MixerAudioSource -> SimpleFilter -> ScriptProcessorNode 기반 4채널 믹싱
 - WaveformRenderer: Canvas를 활용한 실시간 파형 렌더링
 - ABLoopManager: 루프 범위 관리 및 재생 위치 제어
 
@@ -207,6 +214,7 @@ backend/                              # Python FastAPI (Phase 3 - 미구현)
 - audioStore: 파일 로드, 버퍼, 메타데이터
 - playerStore: 재생 상태 (playing/paused/stopped), 현재 시간
 - controlStore: 볼륨, 속도, 피치 값
+- stemStore: 스템 분리 상태, 스템 데이터, 믹서 볼륨/솔로/뮤트
 - loopStore: A 지점, B 지점, 루프 활성화 상태
 
 **hooks/** - React 통합 훅
@@ -214,6 +222,8 @@ backend/                              # Python FastAPI (Phase 3 - 미구현)
 React 컴포넌트가 오디오 엔진과 상태를 연동하는 커스텀 훅:
 - useAudioEngine: AudioEngine 초기화 및 정리
 - useSpeedPitch: soundtouchjs 연동 속도/피치 제어 로직
+- useStemMixer: StemMixer 래퍼 훅 (스템 로드, 재생, 볼륨/솔로/뮤트 제어)
+- useSeparation: 분리 프로세스 관리 훅 (업로드, SSE 진행률 구독, 스템 다운로드)
 - useKeyboardShortcuts: 키보드 이벤트 처리
 - usePlayback: 재생 제어 로직
 - useFileLoader: 파일 로딩 로직
@@ -228,23 +238,23 @@ React 컴포넌트가 오디오 엔진과 상태를 연동하는 커스텀 훅:
 - component/: React Testing Library로 컴포넌트 테스트 (추가 예정)
 - e2e/: Playwright로 전체 사용자 흐름 테스트 (실제 오디오 재생 검증 포함)
 
-### backend/ - FastAPI 서버 (Phase 3 - 미구현)
+### backend/ - FastAPI 서버
 
-**목적**: 음원 분리 처리를 위한 REST API 서버
+**목적**: YouTube 변환 및 AI 음원 분리 처리를 위한 REST API 서버
 
-**routes/separation.py** - 음원 분리 API 엔드포인트
-- POST /api/separate: 오디오 파일 업로드 및 분리 요청
-- GET /api/separate/{job_id}: 분리 작업 상태 조회
-- GET /api/separate/{job_id}/download: 분리된 오디오 다운로드
+**routes/** - API 엔드포인트
+- health.py: 서버 헬스 체크
+- youtube.py: YouTube URL 변환 (POST /api/v1/youtube/convert, GET progress SSE, GET download)
+- separation.py: 음원 분리 (POST /api/v1/separate, GET /api/v1/separate/{task_id}/progress SSE, GET /api/v1/separate/{task_id}/stems/{stem_name})
 
-**services/demucs_service.py** - Demucs 통합
-- 오디오 파일을 Demucs 모델에 입력
-- 악기별로 분리된 오디오 생성
-- 결과를 캐시에 저장
+**services/** - 비즈니스 로직
+- youtube_service.py: yt-dlp 비동기 래퍼, 다운로드 세마포어 (최대 5개)
+- separation_service.py: Demucs htdemucs 모델 래퍼, 파일 해시 기반 캐싱, 동시처리 제한
+- cleanup_service.py: 임시 파일 및 태스크 정리 (10분 주기, 1시간 만료)
 
 **Dockerfile** - Docker 컨테이너 정의
-- Python 3.12+ 기본 이미지
-- Demucs, PyDub, NumPy 등 의존성 설치
+- Python 3.13+ 기본 이미지
+- FastAPI, Demucs, PyTorch (CPU), yt-dlp 등 의존성 설치
 - FastAPI 서버 실행
 
 ### my-docs/ - 프로젝트 설계 문서
@@ -279,11 +289,12 @@ Zustand 스토어 (stores/) + 오디오 엔진 (core/)
     ↓
 오디오 재생/시각화
   - AudioEngine: soundtouchjs SimpleFilter → ScriptProcessorNode → GainNode → AnalyserNode → Destination
+  - StemMixer: MixerAudioSource → SimpleFilter → ScriptProcessorNode → GainNode → Destination
   - WaveformRenderer: wavesurfer.js Canvas 렌더링
     ↓
-(Phase 3) 분리된 악기 → Backend API (FastAPI)
+Backend API (FastAPI) → 음원 분리 (Demucs) / YouTube 변환 (yt-dlp)
     ↓
-Demucs 처리 (backend/)
+분리된 스템 다운로드 → StemMixer 멀티트랙 재생
 ```
 
 ---
@@ -296,12 +307,12 @@ Demucs 처리 (backend/)
    - `pnpm test` (Vitest)
    - `pnpm test:e2e` (Playwright)
 
-2. **백엔드 개발 (Phase 3 - 미구현)**
+2. **백엔드 개발**
    - `cd backend/`
    - `python -m venv venv`
    - `source venv/bin/activate`
    - `pip install -r requirements.txt`
-   - `uvicorn app.main:app --reload`
+   - `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`
 
 3. **통합 테스트**
    - Backend: `python -m pytest tests/`

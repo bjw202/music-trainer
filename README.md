@@ -46,15 +46,20 @@
 / (repository root)
 ├── src/                        # Frontend
 │   ├── api/                   # Backend API client
+│   │   └── separation.ts     # 분리 API 클라이언트 (업로드, SSE, 다운로드)
 │   ├── components/            # Reusable UI components
 │   │   ├── FileLoader/        # File loading components
 │   │   │   └── LoadAudioModal.tsx  # Modal for loading new audio during playback
 │   │   └── YouTubeInput/      # YouTube URL input component
 │   ├── core/                  # Core business logic
+│   │   └── StemMixer.ts      # 멀티트랙 스템 믹서 오디오 엔진
 │   ├── stores/                # Zustand state stores
-│   │   └── youtubeStore.ts   # YouTube conversion state
+│   │   ├── youtubeStore.ts   # YouTube conversion state
+│   │   └── stemStore.ts      # 스템 분리/믹서 상태 관리
 │   ├── hooks/                 # Custom React hooks
-│   │   └── useYouTubeConvert.ts  # YouTube conversion hook
+│   │   ├── useYouTubeConvert.ts  # YouTube conversion hook
+│   │   ├── useStemMixer.ts       # StemMixer 래퍼 훅
+│   │   └── useSeparation.ts      # 분리 프로세스 관리 훅
 │   ├── utils/                 # Utility functions
 │   ├── types/                 # TypeScript type definitions
 │   ├── test/                  # Test setup and utilities
@@ -67,10 +72,12 @@
 │   │   ├── config.py         # Environment configuration
 │   │   ├── routes/           # API routes
 │   │   │   ├── health.py     # Health check endpoint
-│   │   │   └── youtube.py    # YouTube conversion endpoints
+│   │   │   ├── youtube.py    # YouTube conversion endpoints
+│   │   │   └── separation.py # 음원 분리 엔드포인트
 │   │   ├── services/         # Business logic
-│   │   │   ├── youtube_service.py   # yt-dlp wrapper
-│   │   │   └── cleanup_service.py   # Temporary file cleanup
+│   │   │   ├── youtube_service.py      # yt-dlp wrapper
+│   │   │   ├── separation_service.py   # Demucs 래퍼
+│   │   │   └── cleanup_service.py      # Temporary file cleanup
 │   │   ├── models/           # Pydantic schemas
 │   │   └── utils/            # Utilities
 │   ├── tests/                # Backend tests (65 tests)
