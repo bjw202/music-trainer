@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-15
+
+### Added
+
+- **YouTube 변환 기능 (SPEC-API-001)**: YouTube URL에서 MP3 오디오 자동 추출
+  - YouTube URL 입력 UI 컴포넌트
+  - 실시간 변환 진행률 표시 (SSE)
+  - 변환 완료 후 자동 오디오 로드
+  - 에러 상태 표시 및 재시도 기능
+  - 변환 취소 버튼
+
+- **Backend Server (FastAPI)**: Python 기반 REST API 서버
+  - `POST /api/v1/youtube/convert` - YouTube URL 변환 시작
+  - `GET /api/v1/youtube/progress/{task_id}` - SSE 진행률 스트리밍
+  - `GET /api/v1/youtube/download/{task_id}` - 변환된 MP3 다운로드
+  - `GET /api/v1/health` - 서버 헬스 체크
+  - yt-dlp 비동기 래핑 (`run_in_executor`)
+  - 동시 다운로드 세마포어 (최대 5개)
+  - IP 기반 요율 제한 (분당 10회)
+  - 자동 파일 정리 (10분 간격, 1시간 만료)
+
+- **Frontend Integration**: YouTube 변환 프론트엔드 통합
+  - `youtubeStore` - Zustand 상태 관리
+  - `useYouTubeConvert` 커스텀 훅
+  - API 클라이언트 모듈 (TypeScript)
+  - SSE 클라이언트 (EventSource API)
+  - 클라이언트 측 URL 검증
+
+- **Testing**: 65개 pytest 테스트 전체 통과
+  - Backend 단위 테스트 (YouTube API, Service)
+  - E2E 테스트 5건 (Playwright)
+    - E2E-1: 실제 YouTube URL 전체 파이프라인 검증
+    - E2E-2: YouTube 단축 URL 파이프라인 검증
+    - E2E-3: 변환된 오디오에 속도/피치 제어 적용 검증
+    - 에러 시나리오 2건
+
+### Technical Details
+
+- **Backend**: Python 3.12+, FastAPI 0.129.0+, yt-dlp 2026.2.4+, ffmpeg
+- **Frontend**: TypeScript 타입 안전성, Fetch API 기반 HTTP 클라이언트
+- **Security**: CORS 설정, URL 화이트리스트, 입력 검증, 타임아웃 (5분)
+- **Performance**: 비동기 처리, 파일 스트리밍, 자동 정리
+
+### Fixed
+
+- YouTube 변환 파이프라인 버그 3건 수정 (커밋 3ba3cbc)
+  - Backend: download 엔드포인트에서 title이 None일 때 TypeError 수정
+  - Frontend: ProgressBar data-testid 불일치 수정
+  - Frontend: useYouTubeConvert에서 AudioEngine.loadFile 경유하도록 수정
+
 ## [0.1.0] - 2026-02-14
 
 ### Added
