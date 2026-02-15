@@ -1,8 +1,9 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { AppLayout } from '../Layout/AppLayout'
 import { Header } from '../Layout/Header'
 import { DragDropZone } from '../FileLoader/DragDropZone'
 import { FileSelector } from '../FileLoader/FileSelector'
+import { LoadAudioModal } from '../FileLoader/LoadAudioModal'
 import { Waveform } from '../Waveform/Waveform'
 import { PlayButton } from '../Controls/PlayButton'
 import { StopButton } from '../Controls/StopButton'
@@ -46,6 +47,9 @@ export function Player() {
   const currentTime = usePlayerStore((state) => state.currentTime)
   const duration = usePlayerStore((state) => state.duration)
   const isPlaying = usePlayerStore((state) => state.isPlaying)
+
+  // 모달 상태 관리
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // 오디오 엔진 초기화
   useEffect(() => {
@@ -266,17 +270,21 @@ export function Player() {
           {/* Load New File button */}
           <div className="text-center">
             <button
-              onClick={handleClick}
+              onClick={() => setIsModalOpen(true)}
               className="px-6 py-2 bg-[#1E1E1E] text-[#F5F5F5] rounded-xl hover:bg-[#2A2A2A] transition-colors font-medium"
               aria-label="Load new audio file"
             >
               Load New File
             </button>
-            <FileSelector
-              fileInputRef={fileInputRef}
-              onChange={handleFileSelect}
-            />
           </div>
+
+          {/* Load Audio Modal */}
+          <LoadAudioModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            loadFile={loadFile}
+            isReady={isReady}
+          />
         </div>
       )}
     </AppLayout>
