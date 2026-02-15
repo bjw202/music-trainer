@@ -15,8 +15,9 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routes import health, youtube
+from app.routes import health, separation, youtube
 from app.services.cleanup_service import run_cleanup_loop
+from app.services.separation_service import separation_service
 from app.services.youtube_service import youtube_service
 
 # 로깅 설정
@@ -25,6 +26,28 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+async def _cleanup_expired_separation_tasks(download_path: Path) -> None:
+    """만료된 분리 태스크를 정리합니다.
+
+    Args:
+        download_path: 다운로드 디렉터리 경로 (cleanup_service와 호환성).
+    """
+    from app.services.cleanup_service import cleanup_expired_tasks, FILE_EXPIRY_SECONDS
+
+    while True:
+        try:
+            await asyncio.sleep(600)  # 10분마다 실행
+            cleanup_expired_tasks(
+                separation_service.tasks,
+                expiry_seconds=FILE_EXPIRY_SECONDS,
+            )
+        except asyncio.CancelledError:
+            logger.info("Separation task cleanup cancelled")
+            break
+        except Exception:
+            logger.exception("Error in separation task cleanup")
 
 
 @asynccontextmanager
@@ -37,11 +60,22 @@ async def lifespan(app: FastAPI):
     download_path.mkdir(parents=True, exist_ok=True)
     logger.info("Download directory: %s", download_path)
 
-    # 백그라운드 정리 태스크 시작
+    # 스템 캐시 디렉터리 생성
+    stems_cache_path = Path(separation_service.cache_dir)
+    stems_cache_path.mkdir(parents=True, exist_ok=True)
+    logger.info("Stems cache directory: %s", stems_cache_path)
+
+    # 백그라운드 정리 태스크 시작 (다운로드 + 스템 캐시 정리)
     cleanup_task = asyncio.create_task(
         run_cleanup_loop(download_path, youtube_service.tasks)
     )
     logger.info("Cleanup background task started")
+
+    # 스템 분리 태스크도 정리에 포함
+    asyncio.create_task(
+        _cleanup_expired_separation_tasks(download_path)
+    )
+    logger.info("Separation task cleanup started")
 
     yield
 
@@ -96,6 +130,7 @@ def create_app() -> FastAPI:
     # 라우터 등록
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(youtube.router, prefix="/api/v1")
+    app.include_router(separation.router, prefix="/api/v1")
 
     return app
 

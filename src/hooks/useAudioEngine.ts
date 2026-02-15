@@ -45,7 +45,7 @@ export function useAudioEngine() {
       engineRef.current = engine
 
       // E2E 테스트에서 엔진 내부 상태를 검증할 수 있도록 노출
-      if (import.meta.env.DEV) {
+      if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
         ;(window as unknown as Record<string, unknown>).__audioEngine = engine
       }
 

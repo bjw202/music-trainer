@@ -63,3 +63,39 @@ class ErrorResponse(BaseModel):
 
     detail: str
     error_type: str | None = None
+
+
+# ==============================================================================
+# Audio Separation Schemas
+# ==============================================================================
+
+
+class SeparationRequest(BaseModel):
+    """음원 분리 요청 모델."""
+
+    model: str = "htdemucs"
+
+
+class SeparationResponse(BaseModel):
+    """음원 분리 응답 모델."""
+
+    task_id: str
+    status: str
+    message: str
+
+
+class SeparationProgress(BaseModel):
+    """음원 분리 진행 상태 모델 (SSE 스트리밍용)."""
+
+    progress: float  # 0-100, or -1 for error
+    status: str  # processing, completed, failed, queued
+    stems: list[str] | None = None  # 완료 시 스템 이름 목록
+    error: str | None = None  # 에러 메시지
+
+
+class StemInfo(BaseModel):
+    """스템 파일 정보 모델."""
+
+    name: str  # vocals, drums, bass, other
+    url: str  # 다운로드 URL
+    size_bytes: int | None = None  # 파일 크기 (선택사항)

@@ -11,3 +11,11 @@ httpx>=0.28
 # Test dependencies
 pytest>=8.3
 pytest-asyncio>=0.25
+
+# Audio separation dependencies
+demucs>=4.0.1
+# Torch CPU only - use extra index url for CPU builds
+# Install with: pip install --index-url https://download.pytorch.org/whl/cpu torch
+# torchaudio needs to match torch version
+torchaudio>=2.0.0
+aiofiles>=23.0.0

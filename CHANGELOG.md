@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-02-15
+
+### Added
+
+- **AI 음원 분리 (SPEC-STEM-001)**: Demucs htdemucs 모델로 4개 스템 분리
+  - vocals, drums, bass, other 4개 스템으로 자동 분리
+  - 실시간 분리 진행률 표시 (SSE)
+  - 파일 해시 기반 캐싱으로 재분리 방지
+
+- **스템 믹서 오디오 엔진**: 멀티트랙 재생 엔진
+  - 4개 스템 동시 재생
+  - 개별 볼륨 제어 (0-100%)
+  - 솔로/뮤트 기능
+  - SoundTouch 통합으로 속도/피치 동기화
+
+- **스템 믹서 UI**: Logic Pro 스타일 믹서 패널
+  - StemMixerPanel, StemTrack 컴포넌트
+  - 스템별 색상 코딩 (보라/주황/초록/파랑)
+  - SeparationButton, SeparationProgress 컴포넌트
+
+- **백엔드 분리 API**: 3개 엔드포인트
+  - POST /api/v1/separate - 파일 업로드 및 분리 시작
+  - GET /api/v1/separate/{task_id}/progress - SSE 진행률
+  - GET /api/v1/separate/{task_id}/stems/{stem_name} - 스템 다운로드
+
+- **E2E 테스트**: 스템 믹서 전체 시나리오 테스트
+  - 32개 테스트 케이스 (Mock API + Web Audio 검증)
+
+### Technical Details
+
+- **Backend**: Demucs 4.x, PyTorch (CPU), FastAPI SSE
+- **Frontend**: soundtouchjs, Web Audio API ScriptProcessorNode
+- **Architecture**: 4x WebAudioBufferSource -> ScriptProcessorNode -> SoundTouch -> GainNode
+
 ## [0.2.0] - 2026-02-15
 
 ### Added

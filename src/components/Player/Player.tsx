@@ -14,16 +14,21 @@ import { ABLoopControls } from '../ABLoop/ABLoopControls'
 import { ABLoopDisplay } from '../ABLoop/ABLoopDisplay'
 import { SpeedPitchPanel } from '../SpeedPitch'
 import { YouTubeSection } from '../YouTube'
+import { SeparationButton } from '../StemMixer/SeparationButton'
+import { SeparationProgress } from '../StemMixer/SeparationProgress'
+import { StemMixerPanel } from '../StemMixer/StemMixerPanel'
 import { useAudioEngine } from '../../hooks/useAudioEngine'
 import { usePlayback } from '../../hooks/usePlayback'
 import { useSpeedPitch } from '../../hooks/useSpeedPitch'
 import { useWaveform } from '../../hooks/useWaveform'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFileLoader } from '../../hooks/useFileLoader'
+import { useSeparation } from '../../hooks/useSeparation'
 import { useAudioStore } from '../../stores/audioStore'
 import { useControlStore } from '../../stores/controlStore'
 import { useLoopStore } from '../../stores/loopStore'
 import { usePlayerStore } from '../../stores/playerStore'
+import { useStemStore } from '../../stores/stemStore'
 
 /**
  * 메인 플레이어 컴포넌트
@@ -34,6 +39,7 @@ export function Player() {
   const { engine, isReady, error, initialize, loadFile } = useAudioEngine()
   const fileName = useAudioStore((state) => state.fileName)
   const buffer = useAudioStore((state) => state.buffer)
+  const file = useAudioStore((state) => state.file)
   const volume = useControlStore((state) => state.volume)
   const muted = useControlStore((state) => state.muted)
   const setVolume = useControlStore((state) => state.setVolume)
@@ -48,8 +54,46 @@ export function Player() {
   const duration = usePlayerStore((state) => state.duration)
   const isPlaying = usePlayerStore((state) => state.isPlaying)
 
+  // Stem 모드 상태
+  const isStemMode = useStemStore((state) => state.isStemMode)
+  const separationStatus = useStemStore((state) => state.separationStatus)
+  const separationProgress = useStemStore((state) => state.separationProgress)
+  const separationError = useStemStore((state) => state.errorMessage)
+  const setStemMode = useStemStore((state) => state.setStemMode)
+
   // 모달 상태 관리
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  // Stem 분리 훅
+  const {
+    startSeparation,
+    retrySeparation,
+  } = useSeparation()
+
+  /**
+   * Stem 분리 시작 핸들러
+   */
+  const handleSeparation = useCallback(async () => {
+    if (!file) {
+      return
+    }
+
+    // 이미 완료된 상태면 Stem Mixer 모드로 전환
+    if (separationStatus === 'completed') {
+      setStemMode(true)
+      return
+    }
+
+    // 분리 시작
+    await startSeparation(file)
+  }, [file, separationStatus, startSeparation, setStemMode])
+
+  /**
+   * Stem Mixer 모드 종료 핸들러
+   */
+  const handleExitStemMode = useCallback(() => {
+    setStemMode(false)
+  }, [setStemMode])
 
   // 오디오 엔진 초기화
   useEffect(() => {
@@ -238,6 +282,13 @@ export function Player() {
             <SpeedPitchPanel disabled={!canPlay} />
           </div>
 
+          {/* Stem Mixer Panel - Stem 모드일 때만 표시 */}
+          {isStemMode && separationStatus === 'completed' && (
+            <div className="space-y-3">
+              <StemMixerPanel disabled={!canPlay} />
+            </div>
+          )}
+
           {/* A-B Loop section */}
           <div className="space-y-3">
             {/* Label row */}
@@ -260,6 +311,27 @@ export function Player() {
             </div>
           </div>
 
+          {/* Stem Separation section */}
+          <div className="space-y-3">
+            {/* Label row */}
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-sm font-semibold text-[#F5F5F5]">Stem Separation</h3>
+            </div>
+
+            {/* Separation Button */}
+            <div className="flex justify-center">
+              <SeparationButton onClick={handleSeparation} />
+            </div>
+
+            {/* Progress Display */}
+            <SeparationProgress
+              status={separationStatus}
+              progress={separationProgress}
+              errorMessage={separationError}
+              onRetry={retrySeparation}
+            />
+          </div>
+
           {/* Keyboard shortcuts hint */}
           <div className="text-center">
             <p className="text-xs text-[#6B7280]">
@@ -277,6 +349,29 @@ export function Player() {
               Load New File
             </button>
           </div>
+
+          {/* Stem Mixer Mode Toggle */}
+          {separationStatus === 'completed' && (
+            <div className="text-center">
+              {isStemMode ? (
+                <button
+                  onClick={handleExitStemMode}
+                  className="px-6 py-2 bg-[#2A2A2A] text-[#F5F5F5] rounded-xl hover:bg-[#3A3A3A] transition-colors font-medium"
+                  aria-label="Exit stem mixer mode"
+                >
+                  Exit Stem Mixer
+                </button>
+              ) : (
+                <button
+                  onClick={handleSeparation}
+                  className="px-6 py-2 bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] text-white rounded-xl hover:from-[#7C3AED] hover:to-[#4F46E5] transition-all font-medium"
+                  aria-label="Enter stem mixer mode"
+                >
+                  Open Stem Mixer
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Load Audio Modal */}
           <LoadAudioModal

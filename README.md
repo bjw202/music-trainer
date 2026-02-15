@@ -11,6 +11,12 @@
 - **A-B 루프**: 특정 구간 반복 재생으로 연습 효율 향상
 - **볼륨 제어**: 0%~100% 마스터 볼륨 및 뮤트 기능
 - **키보드 단축키**: Space(재생/일시정지), I/O(A/B 지점), M(뮤트), 화살표(탐색)
+- **스템 믹서 (Stem Mixer)**: AI 기반 음원 분리 기능
+  - Demucs htdemucs 모델로 4개 스템 분리 (vocals, drums, bass, other)
+  - 실시간 분리 진행률 표시 (SSE)
+  - 각 스템별 개별 볼륨 제어 (0-100%)
+  - 솔로/뮤트 기능으로 특정 악기 집중 연습
+  - SoundTouch 통합으로 속도/피치 동기화
 
 ## Tech Stack
 
@@ -29,6 +35,8 @@
 - **FastAPI 0.129.0+** - Modern async web framework
 - **yt-dlp 2026.2.4+** - YouTube audio extraction
 - **ffmpeg** - Audio processing
+- **Demucs 4.x** - AI source separation (htdemucs model)
+- **PyTorch (CPU)** - ML runtime for Demucs
 - **Uvicorn** - ASGI server
 - **pytest** - Testing framework (65 tests)
 
