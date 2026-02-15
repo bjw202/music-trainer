@@ -6,6 +6,7 @@
 
 - **오디오 파일 로드**: MP3, WAV, M4A, OGG 형식 지원 (드래그 앤 드롭)
 - **YouTube 변환**: YouTube URL에서 MP3 추출 및 자동 로드 (실시간 진행률 표시)
+- **재생 중 파일 교체**: 재생 중에도 모달을 통해 새로운 오디오 파일 로드 가능 (YouTube URL 입력 및 파일 드래그 앤 드롭 지원)
 - **파형 시각화**: wavesurfer.js를 활용한 부드러운 파형 표시
 - **A-B 루프**: 특정 구간 반복 재생으로 연습 효율 향상
 - **볼륨 제어**: 0%~100% 마스터 볼륨 및 뮤트 기능
@@ -38,7 +39,9 @@
 ├── src/                        # Frontend
 │   ├── api/                   # Backend API client
 │   ├── components/            # Reusable UI components
-│   │   └── YouTubeInput/     # YouTube URL input component
+│   │   ├── FileLoader/        # File loading components
+│   │   │   └── LoadAudioModal.tsx  # Modal for loading new audio during playback
+│   │   └── YouTubeInput/      # YouTube URL input component
 │   ├── core/                  # Core business logic
 │   ├── stores/                # Zustand state stores
 │   │   └── youtubeStore.ts   # YouTube conversion state

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **재생 중 파일 교체 모달**: 재생 중 새로운 오디오 파일 로드를 위한 LoadAudioModal 구현
+  - "새 파일 로드" 버튼으로 모달 오픈
+  - YouTube URL 입력 지원 (YouTube 섹션 재사용)
+  - 드래그 앤 드롭 파일 로딩 지원
+  - 파일 브라우저 선택 지원
+  - ESC 키 및 배경 클릭으로 모달 닫기
+  - 로드 성공 시 자동으로 모달 닫힘
+
 - **YouTube 변환 기능 (SPEC-API-001)**: YouTube URL에서 MP3 오디오 자동 추출
   - YouTube URL 입력 UI 컴포넌트
   - 실시간 변환 진행률 표시 (SSE)
@@ -49,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Performance**: 비동기 처리, 파일 스트리밍, 자동 정리
 
 ### Fixed
+
+- **LoadAudioModal React Hooks 규칙 위반 수정**: useCallback이 조건부 return 이후에 호출되는 문제 수정
+  - 모든 Hook 호출을 조건부 return 이전으로 이동
+  - React Hooks 규칙 준수
 
 - YouTube 변환 파이프라인 버그 3건 수정 (커밋 3ba3cbc)
   - Backend: download 엔드포인트에서 title이 None일 때 TypeError 수정
