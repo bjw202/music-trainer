@@ -415,17 +415,42 @@ docker run -p 8000:8000 music-trainer-backend
 
 **.env (Backend):**
 ```
-CORS_ORIGINS=http://localhost:5173
+CORS_ORIGINS=["http://localhost:5173","http://localhost:3000"]
 MAX_FILE_SIZE_MB=100
 TEMP_DIR=/tmp/music-trainer
 CLEANUP_INTERVAL_MINUTES=10
 FILE_RETENTION_HOURS=1
+YOUTUBE_COOKIES=  # base64 인코딩된 YouTube cookies.txt (선택사항)
 ```
 
 **.env (Frontend):**
 ```
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+**YOUTUBE_COOKIES 설정 (선택사항):**
+
+YouTube 로그인 필요 콘텐츠나 연령 제한 영상을 다운로드하려면 쿠키 인증이 필요합니다.
+
+1. 브라우저 확장 프로그램으로 YouTube cookies.txt 추출
+   - Chrome/Edge: [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+   - Firefox: [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/)
+
+2. 추출한 cookies.txt를 base64로 인코딩
+   ```bash
+   # macOS/Linux
+   base64 -i cookies.txt | tr -d '\n'
+
+   # Windows (PowerShell)
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes("cookies.txt"))
+   ```
+
+3. 인코딩된 문자열을 YOUTUBE_COOKIES 환경변수에 설정
+   ```bash
+   export YOUTUBE_COOKIES="<base64-encoded-string>"
+   ```
+
+Railway/Vercel 등 클라우드 환경에서는 환경변수 설정 UI에서 동일하게 설정하시면 됩니다.
 
 ## Color Scheme
 
@@ -470,6 +495,74 @@ Fonts:
 | R | Reset speed & pitch |
 | ← | Seek -5 seconds |
 | → | Seek +5 seconds |
+
+## Deployment
+
+### Railway (Backend)
+
+Backend는 Railway에 배포되어 있습니다.
+
+**필수 환경변수:**
+- `PORT`: Railway가 자동으로 할당 (동적)
+- `CORS_ORIGINS`: 프론트엔드 URL (JSON 배열 형식)
+  - 예: `["https://guitar-mp3-trainer.vercel.app"]`
+- `YOUTUBE_COOKIES`: (선택사항) base64 인코딩된 YouTube cookies.txt
+
+**알려진 제한사항:**
+- Railway 환경변수가 컨테이너에 전달되지 않는 문제가 있습니다.
+- 현재는 코드 기본값으로 Vercel 프로덕션 URL이 설정되어 있습니다.
+- CORS_ORIGINS 설정이 필요한 경우, 코드 수정 후 재배포가 필요합니다.
+
+### Vercel (Frontend)
+
+Frontend는 Vercel에 배포되어 있습니다.
+
+**필수 환경변수:**
+- `VITE_API_BASE_URL`: Railway 백엔드 URL
+  - 예: `https://your-railway-app.up.railway.app`
+
+## Known Issues
+
+현재 프로젝트에서 알려진 문제들입니다.
+
+### 1. Railway 환경변수 전달 문제
+
+**문제:**
+- Railway 대시보드에서 설정한 환경변수가 Docker 컨테이너 내부로 전달되지 않습니다.
+- `CORS_ORIGINS`, `YOUTUBE_COOKIES` 등 런타임 환경변수가 적용되지 않습니다.
+
+**영향:**
+- CORS 설정을 동적으로 변경할 수 없습니다.
+- YouTube 인증 쿠키를 런타임에 주입할 수 없습니다.
+
+**Workaround:**
+- 코드 기본값으로 Vercel 프로덕션 URL을 포함시켰습니다.
+- 필요 시 `backend/app/config.py` 파일을 수정하고 재배포합니다.
+- `main.py`에서 기동 시 CORS 오리진을 로그로 출력하여 설정값 확인 가능합니다.
+
+**추적:**
+- Railway 공식 문서 및 커뮤니티 포럼 조사 중
+- 대안으로 Dockerfile ENV 선언 또는 railway.toml 활용 검토 중
+
+### 2. 음원 분리(Stem Separation) 완료되지 않는 문제
+
+**문제:**
+- Demucs 모델을 사용한 음원 분리 작업이 중간에 멈추거나 완료되지 않는 경우가 발생합니다.
+- CPU 기반 처리로 인해 타임아웃(30분)을 초과할 수 있습니다.
+
+**영향:**
+- 긴 오디오 파일(10분 이상)의 경우 분리 작업 실패 가능성 높음
+- SSE 진행률이 80-90%에서 멈추는 현상 보고됨
+
+**Workaround:**
+- 짧은 오디오 파일(5분 이하)로 테스트 권장
+- 타임아웃 설정을 늘려서 재시도
+- 분리 작업 실패 시 파일 크기를 줄이고 재시도
+
+**조사 중:**
+- Demucs 모델 파라미터 최적화 필요성 검토
+- 메모리 부족 또는 CPU 리소스 제한 여부 확인
+- Railway 컨테이너 리소스 모니터링 추가 예정
 
 ## Quality Standards
 

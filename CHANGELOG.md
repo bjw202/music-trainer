@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-02-17
+
+### Added
+
+- **YouTube 인증 지원**: yt-dlp cookies 인증 기능 추가
+  - YOUTUBE_COOKIES 환경변수로 base64 인코딩된 쿠키 전달
+  - 로그인 필요 콘텐츠 및 연령 제한 영상 지원
+  - 선택적 기능으로 기본 YouTube 다운로드는 쿠키 없이 작동
+
+### Fixed
+
+- **CORS 설정 문제 수정**: pydantic-settings JSON 우선 파싱 우회
+  - pydantic-settings v2.6.0이 환경변수를 JSON으로 먼저 파싱하여 CORS_ORIGINS가 문자열로 처리되던 문제 해결
+  - BeforeValidator로 문자열을 리스트로 변환하는 사전 검증 로직 추가
+  - Railway 및 Vercel 환경에서 CORS 설정 정상 작동 확인
+
+- **Railway 환경변수 전달 문제 해결**: CORS 기본값에 Vercel 프로덕션 URL 추가
+  - Railway 컨테이너에 환경변수가 전달되지 않는 문제 확인
+  - 임시 workaround로 코드 내 기본값에 Vercel 프로덕션 URL 추가
+  - 기동 시 CORS 오리진 설정값을 로그로 출력하여 디버깅 용이성 향상
+
+### Changed
+
+- CORS 기본 오리진에 Vercel 프로덕션 URL 추가
+  - 기본값: `["http://localhost:5173", "https://guitar-mp3-trainer.vercel.app"]`
+  - Railway 환경변수 설정 없이도 프로덕션 환경 즉시 사용 가능
+
+### Technical Details
+
+- pydantic-settings BeforeValidator 활용한 타입 강제 변환
+- Railway Dockerfile HEALTHCHECK 제거, railway.json healthcheck 사용
+- backend/app/config.py 환경변수 파싱 로직 개선
+
 ## [0.3.0] - 2026-02-15
 
 ### Added
