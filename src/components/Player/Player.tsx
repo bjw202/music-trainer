@@ -86,6 +86,22 @@ export function Player() {
     retrySeparation,
   } = useSeparation()
 
+  // 새 파일 로드 시 stem 상태 완전 초기화 래퍼
+  const handleLoadNewFile = useCallback(async (file: File) => {
+    // StemMixer 재생 중이면 정지
+    if (mixer && isMixerReady) {
+      mixer.pause()
+    }
+
+    // 모든 stem 관련 상태 초기화
+    setStemMode(false)
+    setIsStemPlayable(false)
+    useStemStore.getState().reset()
+
+    // 새 파일 로드
+    await loadFile(file)
+  }, [mixer, isMixerReady, setStemMode, loadFile])
+
   // 활성 엔진 결정: Stem 모드이고 mixer가 준비되면 StemMixer 사용
   const activeEngine = useMemo(() => {
     if (isStemMode && isMixerReady && mixer && isStemPlayable) {
@@ -247,21 +263,12 @@ export function Player() {
     fileInputRef,
     error: fileError,
   } = useFileLoader(async (file) => {
-    console.log('[Player] onFileSelect called, isReady:', isReady)
     if (!isReady) {
-      console.log('[Player] AudioEngine not ready, skipping file load')
       return
     }
 
     try {
-      // 새 파일 로드 시 stem 모드 및 관련 상태 초기화
-      if (isStemMode) {
-        setStemMode(false)
-      }
-      setIsStemPlayable(false)
-
-      console.log('[Player] Calling loadFile')
-      await loadFile(file)
+      await handleLoadNewFile(file)
     } catch (error) {
       console.error('Failed to load file:', error)
     }
@@ -492,7 +499,7 @@ export function Player() {
           <LoadAudioModal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
-            loadFile={loadFile}
+            loadFile={handleLoadNewFile}
             isReady={isReady}
           />
         </div>

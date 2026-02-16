@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Player: 새 파일 로드 시 stem 상태 완전 초기화 (LoadAudioModal + 드래그앤드롭 통합)
+  - StemMixer 재생 중 정지 처리
+  - setStemMode(false), setIsStemPlayable(false), reset() 호출로 전체 stem 상태 초기화
+  - handleLoadNewFile 래퍼 함수로 모든 파일 로드 경로 통합
 - torchcodec 0.10.0 설치 (torchaudio 2.10.0 필수 의존성)
 - Demucs apply_model segment=12 파라미터 제거 (모델 기본값 7.8초 사용)
 - cleanup_service: SeparationTask dataclass 지원 (dict + dataclass 호환)
