@@ -6,10 +6,13 @@ pydantic-settings를 사용하여 환경 변수에서 설정을 로드합니다.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -76,4 +79,8 @@ class Settings(BaseSettings):
 
 def get_settings() -> Settings:
     """싱글턴 Settings 인스턴스를 반환합니다."""
-    return Settings()
+    settings = Settings()
+    # 환경변수 로드 확인 로그 (SPEC-BACKEND-001)
+    logger.info("YOUTUBE_COOKIES 설정 여부: %s", "설정됨" if settings.youtube_cookies else "미설정")
+    logger.info("CORS_ORIGINS: %s", settings.cors_origins)
+    return settings
