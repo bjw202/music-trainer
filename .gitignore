@@ -195,3 +195,5 @@ dist-ssr/
 .vercel/
 .netlify/
 .firebase/
+# Prevent pnpm lockfile conflicts (project uses npm)
+pnpm-lock.yaml
