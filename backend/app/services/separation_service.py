@@ -420,6 +420,7 @@ class SeparationService:
                 device="cpu",
                 shifts=1,
                 overlap=0.25,
+                split=True,  # 메모리 효율 최적화 (SPEC-BACKEND-001)
                 progress=False,
             )
         # sources shape: (1, num_sources, channels, samples)
