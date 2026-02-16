@@ -281,7 +281,7 @@ class SeparationService:
         # 오디오 로드
         self._update_progress(task_id, 20.0, "processing")
         try:
-            wav, sr = torchaudio.load(str(file_path))
+            wav, sr = torchaudio.load(str(file_path), backend="ffmpeg")
         except Exception as e:
             raise RuntimeError(f"오디오 파일을 로드할 수 없습니다: {e}") from e
 
