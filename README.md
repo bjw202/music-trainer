@@ -421,7 +421,18 @@ TEMP_DIR=/tmp/music-trainer
 CLEANUP_INTERVAL_MINUTES=10
 FILE_RETENTION_HOURS=1
 YOUTUBE_COOKIES=  # base64 인코딩된 YouTube cookies.txt (선택사항)
+LOG_LEVEL=INFO   # 환경변수 로드 확인 로깅 포함
 ```
+
+**환경변수 로드 확인 (v0.3.2+):**
+
+애플리케이션 시작 시 로그에서 환경변수 로드 상태를 확인할 수 있습니다:
+```
+INFO: YOUTUBE_COOKIES 설정 여부: 설정됨
+INFO: CORS_ORIGINS 로드됨: ['http://localhost:5173', 'https://guitar-mp3-trainer.vercel.app']
+```
+
+Railway/Vercel 환경에서는 `railway logs` 또는 Vercel 대시보드에서 로그를 확인하세요.
 
 **.env (Frontend):**
 ```
@@ -544,25 +555,22 @@ Frontend는 Vercel에 배포되어 있습니다.
 - Railway 공식 문서 및 커뮤니티 포럼 조사 중
 - 대안으로 Dockerfile ENV 선언 또는 railway.toml 활용 검토 중
 
-### 2. 음원 분리(Stem Separation) 완료되지 않는 문제
+### 2. 음원 분리(Stem Separation) 메모리 부족 문제 (✅ 해결됨)
 
-**문제:**
-- Demucs 모델을 사용한 음원 분리 작업이 중간에 멈추거나 완료되지 않는 경우가 발생합니다.
-- CPU 기반 처리로 인해 타임아웃(30분)을 초과할 수 있습니다.
+**문제 (v0.3.1 이전):**
+- Demucs 모델을 사용한 음원 분리 작업이 Railway 환경에서 OOM(Out of Memory)으로 실패
+- 피크 메모리 사용량: ~1.5GB, Railway 무료 플랜 RAM 제한(512MB) 초과
+- 긴 오디오 파일(6분 이상)의 경우 분리 작업 중단
 
-**영향:**
-- 긴 오디오 파일(10분 이상)의 경우 분리 작업 실패 가능성 높음
-- SSE 진행률이 80-90%에서 멈추는 현상 보고됨
+**해결 방법 (v0.3.2):**
+- Demucs `split=True` 옵션 적용으로 메모리 79% 감소 (~318MB)
+- Railway 무료 플랜 환경에서 374.6초(6.2분) 오디오 안정적 처리 확인
+- Related: SPEC-BACKEND-001 Phase 2
 
-**Workaround:**
-- 짧은 오디오 파일(5분 이하)로 테스트 권장
-- 타임아웃 설정을 늘려서 재시도
-- 분리 작업 실패 시 파일 크기를 줄이고 재시도
-
-**조사 중:**
-- Demucs 모델 파라미터 최적화 필요성 검토
-- 메모리 부족 또는 CPU 리소스 제한 여부 확인
-- Railway 컨테이너 리소스 모니터링 추가 예정
+**현재 상태:**
+- 5-7분 오디오 분리 정상 동작
+- 10분 이상 초장시간 오디오는 여전히 타임아웃 가능 (CPU 기반 처리)
+- 권장: 7분 이하 오디오 파일 사용
 
 ## Quality Standards
 

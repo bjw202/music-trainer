@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-02-17
+
+### Added
+
+- **환경변수 로드 확인 로깅**: 프로덕션 디버깅 개선 (SPEC-BACKEND-001)
+  - config.py에 YOUTUBE_COOKIES, CORS_ORIGINS 로드 상태 로깅 추가
+  - Railway 환경에서 환경변수 설정 문제 즉시 진단 가능
+  - 로그 출력으로 런타임 설정값 확인 용이성 향상
+
+### Fixed
+
+- **Railway 프로덕션 OOM 문제 해결**: Demucs 메모리 최적화 (SPEC-BACKEND-001)
+  - Demucs `apply_model()` 호출 시 `split=True` 옵션 적용
+  - 피크 메모리 사용량: ~1.5GB → ~318MB (79% 감소)
+  - Railway 무료 플랜(512MB RAM) 환경에서 안정적 동작 보장
+  - 374.6초(6.2분) 오디오 분리 테스트 통과
+
+### Technical Details
+
+- Related SPEC: SPEC-BACKEND-001 (백엔드 프로덕션 안정화 Phase 1-2)
+- Memory optimization: Demucs split mode for 79% memory reduction
+- Railway 환경변수 로드 확인: startup 로그에 설정 상태 출력
+- Commits: c8edb48 (split 옵션), 969566b (로깅 추가)
+
 ## [0.3.1] - 2026-02-17
 
 ### Added
