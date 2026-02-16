@@ -9,7 +9,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import subprocess
+import tempfile
 import uuid
+import wave
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -257,6 +260,107 @@ class SeparationService:
             logger.error("Failed to load Demucs model: %s", e)
             raise RuntimeError(f"모델 로딩 실패: {e}") from e
 
+    def _load_audio(self, file_path: Path) -> tuple[Any, int]:
+        """오디오 파일을 로드합니다. torchaudio 실패 시 ffmpeg 폴백을 사용합니다.
+
+        torchaudio 2.6+는 backend 매개변수를 무시하고 TorchCodec을 요구하므로,
+        ffmpeg 폴백으로 파일을 처리합니다.
+
+        Args:
+            file_path: 오디오 파일 경로.
+
+        Returns:
+            (waveform, sample_rate) 튜플.
+            waveform은 torch.Tensor로 shape (channels, samples), dtype float32, 범위 [-1, 1].
+
+        Raises:
+            RuntimeError: 모든 로드 방법이 실패한 경우.
+        """
+        # 먼저 torchaudio.load 시도
+        try:
+            wav, sr = torchaudio.load(str(file_path), backend="ffmpeg")
+            logger.info("Audio loaded with torchaudio.load()")
+            return wav, sr
+        except Exception as torchaudio_err:
+            logger.debug(
+                "torchaudio.load failed, falling back to ffmpeg: %s",
+                torchaudio_err,
+            )
+
+        # ffmpeg + wave 폴백
+        try:
+            import numpy as np
+
+            with tempfile.NamedTemporaryFile(
+                suffix=".wav", delete=False
+            ) as temp_wav:
+                temp_wav_path = temp_wav.name
+
+            try:
+                # ffmpeg로 WAV로 변환 (원본 샘플 레이트 유지, 16-bit PCM)
+                result = subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        str(file_path),
+                        "-f",
+                        "wav",
+                        "-acodec",
+                        "pcm_s16le",
+                        temp_wav_path,
+                    ],
+                    capture_output=True,
+                    timeout=120,
+                )
+
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"ffmpeg conversion failed: {result.stderr.decode()}"
+                    )
+
+                # wave 모듈로 WAV 파일 읽기
+                with wave.open(temp_wav_path, "rb") as wav_file:
+                    num_channels = wav_file.getnchannels()
+                    sample_rate = wav_file.getframerate()
+                    num_frames = wav_file.getnframes()
+
+                    # 16-bit PCM 데이터를 읽음
+                    audio_data = wav_file.readframes(num_frames)
+
+                # numpy로 int16 배열 생성
+                audio_np = np.frombuffer(audio_data, dtype=np.int16)
+
+                # 채널별로 reshape: (num_samples,) -> (channels, num_samples)
+                audio_np = audio_np.reshape(-1, num_channels).T
+
+                # float32로 변환하고 [-1, 1] 범위로 정규화
+                audio_float = audio_np.astype(np.float32) / 32768.0
+
+                # torch.Tensor로 변환
+                wav = torch.from_numpy(audio_float)
+
+                logger.info(
+                    "Audio loaded with ffmpeg fallback: sr=%d, shape=%s",
+                    sample_rate,
+                    wav.shape,
+                )
+                return wav, sample_rate
+
+            finally:
+                # 임시 파일 정리
+                try:
+                    Path(temp_wav_path).unlink(missing_ok=True)
+                except Exception as cleanup_err:
+                    logger.debug("Failed to clean up temp wav: %s", cleanup_err)
+
+        except Exception as ffmpeg_err:
+            raise RuntimeError(
+                f"Failed to load audio with both torchaudio and ffmpeg: "
+                f"torchaudio error: {torchaudio_err}, "
+                f"ffmpeg error: {ffmpeg_err}"
+            ) from ffmpeg_err
+
     def _run_demucs_separation(
         self,
         file_path: Path,
@@ -281,7 +385,7 @@ class SeparationService:
         # 오디오 로드
         self._update_progress(task_id, 20.0, "processing")
         try:
-            wav, sr = torchaudio.load(str(file_path), backend="ffmpeg")
+            wav, sr = self._load_audio(file_path)
         except Exception as e:
             raise RuntimeError(f"오디오 파일을 로드할 수 없습니다: {e}") from e
 
