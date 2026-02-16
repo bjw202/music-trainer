@@ -8,7 +8,10 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# 의존성 설치
+# PyTorch CPU 전용 설치 (GPU 버전 ~2GB → CPU 버전 ~200MB)
+RUN pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# 나머지 의존성 설치
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
