@@ -43,6 +43,9 @@ class Settings(BaseSettings):
         "http://localhost:3000"
     )
 
+    # YouTube 쿠키 (base64 인코딩된 Netscape cookies.txt, 선택사항)
+    youtube_cookies: str = ""
+
     # 서버 포트
     port: int = 8000
 
