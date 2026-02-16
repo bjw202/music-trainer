@@ -19,7 +19,7 @@ export function PlayButton({ isPlaying, onToggle, disabled = false }: PlayButton
         ${
           disabled
             ? 'bg-[#1E1E1E] text-[#4B5563] cursor-not-allowed'
-            : 'bg-[#818CF8] text-white hover:bg-[#818CF8]/90 focus:outline-none focus:ring-2 focus:ring-[#818CF8]'
+            : 'bg-[#FF6B35] text-white hover:bg-[#FF6B35]/90 focus:outline-none focus:ring-2 focus:ring-[#FF6B35]'
         }
       `}
       aria-label={isPlaying ? 'Pause' : 'Play'}

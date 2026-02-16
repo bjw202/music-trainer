@@ -1,9 +1,9 @@
 ---
 id: SPEC-MVP-001
-version: "1.0.0"
+version: "1.1.0"
 status: approved
 created: "2026-02-13"
-updated: "2026-02-13"
+updated: "2026-02-16"
 author: jw
 priority: critical
 ---
@@ -13,6 +13,7 @@ priority: critical
 | Version | Date       | Author | Description                    |
 |---------|------------|--------|-------------------------------|
 | 1.0.0   | 2026-02-13 | jw     | Phase 1 MVP SPEC 초안 작성    |
+| 1.1.0   | 2026-02-16 | jw     | ED-012 단축키 A→Q 변경, UI 리디자인 반영 |
 
 ---
 
@@ -91,12 +92,12 @@ priority: critical
 **WHEN** 사용자가 Arrow Left/Right 키를 누르면
 **THEN** 시스템은 현재 위치에서 -5초/+5초 이동한다.
 
-### ED-012: A 키 단축키 (루프 A 지점 이동)
-**WHEN** A-B 루프가 활성화된 상태에서 사용자가 'A' 키를 누르면
+### ED-012: Q 키 단축키 (루프 A 지점 이동)
+**WHEN** A-B 루프가 활성화된 상태에서 사용자가 'Q' 키를 누르면
 **THEN** 시스템은 재생 위치를 A 지점으로 즉시 이동한다.
 **AND** 현재 재생 상태(playing/paused)를 유지한다.
 
-**WHEN** A-B 루프가 비활성화된 상태에서 사용자가 'A' 키를 누르면
+**WHEN** A-B 루프가 비활성화된 상태에서 사용자가 'Q' 키를 누르면
 **THEN** 시스템은 아무 동작도 하지 않는다.
 
 ---

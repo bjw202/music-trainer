@@ -69,11 +69,11 @@ export function YouTubeInput({ disabled, onConvert }: YouTubeInputProps) {
         <button
           type="submit"
           disabled={disabled || !inputValue.trim()}
-          className="h-10 px-5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-500 active:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+          className="h-10 px-5 bg-[#FF6B35] text-white text-sm font-semibold rounded-lg hover:bg-[#FF6B35]/90 active:bg-[#FF6B35]/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
           aria-label="YouTube 변환 시작"
           data-testid="youtube-convert-button"
         >
-          변환
+          Convert
         </button>
       </div>
 

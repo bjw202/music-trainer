@@ -12,7 +12,7 @@ import { TIME_INTERVALS, KEYBOARD_SHORTCUTS, SPEED_PITCH } from '../utils/consta
  * - ArrowRight: +5초 탐색
  * - I: 루프 A 지점 설정
  * - O: 루프 B 지점 설정
- * - A: 루프 A 지점으로 이동 (루프 활성화 시에만 동작)
+ * - Q: 루프 A 지점으로 이동 (루프 활성화 시에만 동작)
  * - M: 음소거 토글
  * - =/+: 속도 +0.1
  * - -/_: 속도 -0.1
@@ -176,7 +176,9 @@ export function useKeyboardShortcuts(
         return
       }
 
-      switch (event.key) {
+      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key
+
+      switch (key) {
         case KEYBOARD_SHORTCUTS.SPACE:
           event.preventDefault()
           handlePlayPause()

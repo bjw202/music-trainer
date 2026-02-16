@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react'
+import { UploadCloud, Gauge, Repeat, Scissors, SlidersHorizontal, FolderOpen } from 'lucide-react'
 import { AppLayout } from '../Layout/AppLayout'
 import { Header } from '../Layout/Header'
 import { DragDropZone } from '../FileLoader/DragDropZone'
@@ -298,30 +299,16 @@ export function Player() {
         >
           <div className="text-center space-y-6">
             {/* Upload icon with gradient */}
-            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#818CF8] to-[#60A5FA] flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-10 h-10 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
+            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-[#FF6B35] to-[#FF8F65] flex items-center justify-center">
+              <UploadCloud className="w-10 h-10 text-white" aria-hidden="true" />
             </div>
 
             {/* Text */}
             <div className="space-y-2">
-              <p className="text-lg font-semibold text-[#F5F5F5]">
+              <p className="text-xl font-heading font-semibold tracking-wide uppercase text-[#F5F5F5]">
                 Drop your audio file here
               </p>
-              <p className="text-sm text-[#9CA3AF]">
+              <p className="text-base text-[#9CA3AF]">
                 or click to browse from your computer
               </p>
             </div>
@@ -332,7 +319,7 @@ export function Player() {
                 e.stopPropagation()
                 handleClick()
               }}
-              className="px-6 py-3 bg-[#818CF8] text-white rounded-xl font-medium hover:bg-[#818CF8]/90 transition-colors"
+              className="px-8 py-3 bg-[#FF6B35] text-white rounded-xl font-semibold text-base hover:bg-[#FF6B35]/90 transition-colors"
             >
               Browse Files
             </button>
@@ -398,8 +385,11 @@ export function Player() {
 
           {/* Speed / Pitch */}
           <div className="space-y-3">
-            <div className="flex items-center px-2">
-              <h3 className="text-sm font-semibold text-[#F5F5F5]">Speed / Pitch</h3>
+            <div className="flex items-center gap-2 px-2">
+              <Gauge className="w-4 h-4 text-[#FF6B35]" aria-hidden="true" />
+              <h3 className="text-sm font-heading font-semibold tracking-wider uppercase text-[#F5F5F5]">
+                Speed & Pitch
+              </h3>
             </div>
             <SpeedPitchPanel disabled={!canPlay} />
           </div>
@@ -407,6 +397,14 @@ export function Player() {
           {/* Stem Mixer Panel - Stem 모드일 때만 표시 */}
           {isStemMode && separationStatus === 'completed' && (
             <div className="space-y-3">
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-[#FF6B35]" aria-hidden="true" />
+                  <h3 className="text-sm font-heading font-semibold tracking-wider uppercase text-[#F5F5F5]">
+                    Stem Mixer
+                  </h3>
+                </div>
+              </div>
               <StemMixerPanel disabled={!canPlay} />
             </div>
           )}
@@ -415,7 +413,12 @@ export function Player() {
           <div className="space-y-3">
             {/* Label row */}
             <div className="flex items-center justify-between px-2">
-              <h3 className="text-sm font-semibold text-[#F5F5F5]">A-B Loop</h3>
+              <div className="flex items-center gap-2">
+                <Repeat className="w-4 h-4 text-[#FF6B35]" aria-hidden="true" />
+                <h3 className="text-sm font-heading font-semibold tracking-wider uppercase text-[#F5F5F5]">
+                  A-B Loop
+                </h3>
+              </div>
               <ABLoopDisplay />
             </div>
 
@@ -436,14 +439,15 @@ export function Player() {
           {/* Stem Separation section */}
           <div className="space-y-3">
             {/* Label row */}
-            <div className="flex items-center justify-between px-2">
-              <h3 className="text-sm font-semibold text-[#F5F5F5]">Stem Separation</h3>
+            <div className="flex items-center gap-2 px-2">
+              <Scissors className="w-4 h-4 text-[#FF6B35]" aria-hidden="true" />
+              <h3 className="text-sm font-heading font-semibold tracking-wider uppercase text-[#F5F5F5]">
+                AI Stem Separation
+              </h3>
             </div>
 
             {/* Separation Button */}
-            <div className="flex justify-center">
-              <SeparationButton onClick={handleSeparation} />
-            </div>
+            <SeparationButton onClick={handleSeparation} />
 
             {/* Progress Display */}
             <SeparationProgress
@@ -455,22 +459,33 @@ export function Player() {
           </div>
 
           {/* Keyboard shortcuts hint */}
-          <div className="text-center">
-            <p className="text-xs text-[#6B7280]">
-              Space: Play/Pause · ←/→: Seek · =/- : Speed · [/]: Pitch · R: Reset
-            </p>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {[
+              { key: 'Space', action: 'Play/Pause' },
+              { key: '←/→', action: 'Seek' },
+              { key: '=/−', action: 'Speed' },
+              { key: '[/]', action: 'Pitch' },
+              { key: 'R', action: 'Reset' },
+              { key: 'Q', action: 'Jump to A' },
+            ].map(({ key, action }) => (
+              <span key={key} className="inline-flex items-center gap-1 text-xs text-[#6B7280]">
+                <kbd className="px-1.5 py-0.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded text-[#9CA3AF] font-mono text-[10px]">
+                  {key}
+                </kbd>
+                {action}
+              </span>
+            ))}
           </div>
 
           {/* Load New File button */}
-          <div className="text-center">
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="px-6 py-2 bg-[#1E1E1E] text-[#F5F5F5] rounded-xl hover:bg-[#2A2A2A] transition-colors font-medium"
-              aria-label="Load new audio file"
-            >
-              Load New File
-            </button>
-          </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-[#1E1E1E] border border-[#2A2A2A] text-[#F5F5F5] rounded-xl hover:bg-[#2A2A2A] hover:border-[#3A3A3A] transition-colors font-medium"
+            aria-label="Load new audio file"
+          >
+            <FolderOpen className="w-4 h-4" aria-hidden="true" />
+            Load New File
+          </button>
 
           {/* Stem Mixer Mode Toggle */}
           {separationStatus === 'completed' && (

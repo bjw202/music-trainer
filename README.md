@@ -5,12 +5,12 @@
 ## 주요 기능
 
 - **오디오 파일 로드**: MP3, WAV, M4A, OGG 형식 지원 (드래그 앤 드롭)
-- **YouTube 변환**: YouTube URL에서 MP3 추출 및 자동 로드 (실시간 진행률 표시)
+- **YouTube 변환 (Convert)**: YouTube URL에서 MP3 추출 및 자동 로드 (실시간 진행률 표시)
 - **재생 중 파일 교체**: 재생 중에도 모달을 통해 새로운 오디오 파일 로드 가능 (YouTube URL 입력 및 파일 드래그 앤 드롭 지원)
 - **파형 시각화**: wavesurfer.js를 활용한 부드러운 파형 표시
 - **A-B 루프**: 특정 구간 반복 재생으로 연습 효율 향상
 - **볼륨 제어**: 0%~100% 마스터 볼륨 및 뮤트 기능
-- **키보드 단축키**: Space(재생/일시정지), I/O(A/B 지점), M(뮤트), 화살표(탐색)
+- **키보드 단축키**: Space(재생/일시정지), I/O(A/B 지점), Q(A지점 이동), M(뮤트), =/-(속도), [/](피치), R(초기화), 화살표(탐색)
 - **스템 믹서 (Stem Mixer)**: AI 기반 음원 분리 기능
   - Demucs htdemucs 모델로 4개 스템 분리 (vocals, drums, bass, other)
   - 실시간 분리 진행률 표시 (SSE)
@@ -26,6 +26,7 @@
 - **Vite 6.x** - Build tool and dev server
 - **Zustand 5.x** - State management
 - **Tailwind CSS 4.x** - Utility-first CSS
+- **lucide-react** - Icon library (Lucide icons)
 - **wavesurfer.js 7.8.x** - Audio waveform visualization
 - **Vitest** - Unit testing (190 tests)
 - **Playwright** - E2E testing
@@ -39,6 +40,244 @@
 - **PyTorch (CPU)** - ML runtime for Demucs
 - **Uvicorn** - ASGI server
 - **pytest** - Testing framework (65 tests)
+
+## Architecture
+
+본 프로젝트는 React 기반 프론트엔드와 FastAPI 기반 백엔드로 구성된 풀스택 웹 애플리케이션입니다. AI 음원 분리와 실시간 오디오 처리를 위해 Web Audio API와 Demucs 모델을 활용합니다.
+
+### System Architecture
+
+전체 시스템은 사용자 브라우저의 React SPA, FastAPI 백엔드 서버, 그리고 외부 서비스(YouTube, Demucs)로 구성됩니다.
+
+```mermaid
+C4Context
+    title System Context - Music Trainer
+
+    Person(user, "Music Learner", "Musician practicing<br/>with audio tracks")
+
+    System_Boundary(frontend, "Frontend (Browser)") {
+        System(spa, "React SPA", "Web Audio API<br/>Waveform visualization<br/>Stem mixer UI")
+    }
+
+    System_Boundary(backend, "Backend (FastAPI)") {
+        System(api, "FastAPI Server", "YouTube conversion<br/>AI stem separation")
+    }
+
+    System_Ext(youtube, "YouTube", "Video platform")
+    System_Ext(demucs, "Demucs Model", "AI source separation")
+
+    Rel(user, spa, "Uses", "HTTPS")
+    Rel(spa, api, "Calls API", "REST/SSE")
+    Rel(api, youtube, "Extracts audio", "yt-dlp")
+    Rel(api, demucs, "Separates stems", "PyTorch")
+```
+
+### Frontend Component Architecture
+
+프론트엔드는 React 컴포넌트, Zustand 스토어, 커스텀 훅, 그리고 두 개의 오디오 엔진(AudioEngine, StemMixer)으로 구성됩니다.
+
+```mermaid
+graph TB
+    subgraph "React Application"
+        App[App.tsx<br/>Root Component]
+
+        subgraph "UI Components"
+            FileLoader[FileLoader<br/>Drag & Drop]
+            YouTubeInput[YouTubeInput<br/>URL Input]
+            Waveform[WaveformDisplay<br/>wavesurfer.js]
+            Controls[Controls<br/>Play/Pause/Stop]
+            ABLoop[ABLoopControls<br/>Loop Markers]
+            Volume[Volume Controls<br/>Slider/Mute]
+            StemMixer[StemMixerPanel<br/>4-Track Mixer]
+        end
+
+        subgraph "Core Engine"
+            AudioEngine[AudioEngine<br/>Web Audio API]
+            StemMixerEngine[StemMixer<br/>Multi-track Engine]
+        end
+
+        subgraph "State Management (Zustand)"
+            audioStore[audioStore]
+            playerStore[playerStore]
+            loopStore[loopStore]
+            stemStore[stemStore]
+            youtubeStore[youtubeStore]
+        end
+
+        subgraph "Custom Hooks"
+            useYouTube[useYouTubeConvert]
+            useStem[useStemMixer]
+            useSeparation[useSeparation]
+        end
+
+        subgraph "API Clients"
+            youtubeAPI[youtube.ts]
+            separationAPI[separation.ts]
+        end
+    end
+
+    App --> FileLoader
+    App --> YouTubeInput
+    App --> Waveform
+    App --> Controls
+    App --> ABLoop
+    App --> Volume
+    App --> StemMixer
+
+    FileLoader --> AudioEngine
+    YouTubeInput --> useYouTube
+    StemMixer --> useStem
+    StemMixer --> useSeparation
+
+    AudioEngine --> audioStore
+    StemMixerEngine --> stemStore
+
+    useYouTube --> youtubeAPI
+    useSeparation --> separationAPI
+
+    youtubeAPI -.HTTP.-> Backend[Backend API]
+    separationAPI -.HTTP.-> Backend
+```
+
+### YouTube Conversion Flow
+
+사용자가 YouTube URL을 입력하면 백엔드에서 yt-dlp로 오디오를 추출하고, 프론트엔드로 전송하여 AudioEngine에 로드합니다.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as YouTubeInput
+    participant Hook as useYouTubeConvert
+    participant API as Backend API
+    participant YTDLP as yt-dlp
+    participant Engine as AudioEngine
+
+    User->>UI: Enter YouTube URL
+    UI->>Hook: convertYouTube(url)
+    Hook->>API: POST /api/v1/youtube/convert
+    activate API
+    API->>YTDLP: Extract audio
+    activate YTDLP
+
+    loop Progress Updates
+        API-->>Hook: SSE progress events
+        Hook-->>UI: Update progress bar
+    end
+
+    YTDLP-->>API: Audio extracted
+    deactivate YTDLP
+    API-->>Hook: 202 Accepted (task_id)
+    deactivate API
+
+    Hook->>API: GET /api/v1/youtube/download/{task_id}
+    API-->>Hook: MP3 file
+    Hook->>Engine: loadFile(mp3)
+    Engine-->>UI: Audio ready
+    UI-->>User: Play button enabled
+```
+
+### Stem Separation Flow
+
+오디오 파일을 업로드하면 Demucs AI 모델이 4개 스템(vocals, drums, bass, other)으로 분리하고, 캐싱된 결과를 프론트엔드 StemMixer에 로드합니다.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as StemMixerPanel
+    participant Hook as useSeparation
+    participant API as Backend API
+    participant Demucs as Demucs Service
+    participant Cache as File Cache
+    participant Mixer as StemMixer Engine
+
+    User->>UI: Click "Separate Stems"
+    UI->>Hook: startSeparation(audioFile)
+    Hook->>API: POST /api/v1/separate<br/>(upload audio)
+    activate API
+
+    API->>Cache: Check hash
+    alt Cache Hit
+        Cache-->>API: Return cached stems
+    else Cache Miss
+        API->>Demucs: Separate audio
+        activate Demucs
+
+        loop Progress Updates (0-100%)
+            API-->>Hook: SSE progress
+            Hook-->>UI: Update progress bar
+        end
+
+        Demucs-->>API: 4 stems<br/>(vocals, drums, bass, other)
+        deactivate Demucs
+        API->>Cache: Store stems
+    end
+
+    API-->>Hook: Separation complete
+    deactivate API
+
+    par Download All Stems
+        Hook->>API: GET /stems/vocals
+        API-->>Hook: vocals.wav
+    and
+        Hook->>API: GET /stems/drums
+        API-->>Hook: drums.wav
+    and
+        Hook->>API: GET /stems/bass
+        API-->>Hook: bass.wav
+    and
+        Hook->>API: GET /stems/other
+        API-->>Hook: other.wav
+    end
+
+    Hook->>Mixer: loadStems(4 buffers)
+    Mixer-->>UI: Mixer ready
+    UI-->>User: Show mixer controls
+```
+
+### Audio Processing Pipeline
+
+StemMixer는 4개의 AudioBufferSourceNode를 ScriptProcessorNode(soundtouchjs)를 통해 처리하고, 각 스템의 GainNode로 개별 볼륨을 제어한 후 마스터 믹스로 합쳐 출력합니다.
+
+```mermaid
+graph LR
+    subgraph "Audio Sources"
+        V[Vocals Buffer]
+        D[Drums Buffer]
+        B[Bass Buffer]
+        O[Other Buffer]
+    end
+
+    subgraph "Web Audio Graph"
+        V --> SN1[BufferSource 1]
+        D --> SN2[BufferSource 2]
+        B --> SN3[BufferSource 3]
+        O --> SN4[BufferSource 4]
+
+        SN1 --> SP[ScriptProcessor<br/>soundtouchjs]
+        SN2 --> SP
+        SN3 --> SP
+        SN4 --> SP
+
+        SP --> G1[GainNode<br/>Vocals Volume]
+        SP --> G2[GainNode<br/>Drums Volume]
+        SP --> G3[GainNode<br/>Bass Volume]
+        SP --> G4[GainNode<br/>Other Volume]
+
+        G1 --> M[Master Mix]
+        G2 --> M
+        G3 --> M
+        G4 --> M
+
+        M --> Dest[AudioContext<br/>Destination]
+    end
+
+    Dest --> Speaker[🔊 Speakers]
+
+    style V fill:#9b59b6
+    style D fill:#e67e22
+    style B fill:#2ecc71
+    style O fill:#3498db
+```
 
 ## Project Structure
 
@@ -192,13 +431,22 @@ VITE_API_BASE_URL=http://localhost:8000
 
 Dark theme colors:
 
-- Background Primary: `#1a1a1a`
-- Background Secondary: `#2a2a2a`
-- Text Primary: `#e0e0e0`
-- Text Secondary: `#a0a0a0`
-- Accent Blue: `#007aff`
-- Accent Red: `#ff3b30`
-- Accent Green: `#34c759`
+- Background Primary: `#1A1A1A`
+- Background Card: `#141414`
+- Background Elevated: `#2D2D2D`
+- Text Primary: `#F5F5F5`
+- Text Secondary: `#9CA3AF`
+- Accent Primary (Orange): `#FF6B35`
+- Accent Success/Active (Teal): `#00D4AA`
+- Stem Vocals (Purple): `#8B5CF6`
+- Stem Drums (Red): `#EF4444`
+- Stem Bass (Blue): `#3B82F6`
+- Stem Other (Green): `#10B981`
+
+Fonts:
+- Headings: Oswald (uppercase, tracking-wider)
+- Body: Inter
+- Monospace: JetBrains Mono
 
 ## Testing
 
@@ -213,8 +461,13 @@ Dark theme colors:
 | Space | Play / Pause |
 | I | Set A point |
 | O | Set B point |
-| A | Jump to A point (when loop active) |
+| Q | Jump to A point (when loop active) |
 | M | Toggle mute |
+| = / + | Speed up (+0.01) |
+| - / _ | Speed down (-0.01) |
+| ] | Pitch up (+1 semitone) |
+| [ | Pitch down (-1 semitone) |
+| R | Reset speed & pitch |
 | ← | Seek -5 seconds |
 | → | Seek +5 seconds |
 

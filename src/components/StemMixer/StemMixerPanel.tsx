@@ -54,9 +54,8 @@ export function StemMixerPanel({ disabled = false }: StemMixerPanelProps) {
 
   return (
     <div className="space-y-4" data-testid="stem-mixer-panel">
-      {/* 헤더: 타이틀 및 리셋 버튼 */}
-      <div className="flex items-center justify-between px-2">
-        <h3 className="text-sm font-semibold text-[#F5F5F5]">Stem Mixer</h3>
+      {/* 헤더: 리셋 버튼 */}
+      <div className="flex items-center justify-end px-2">
         {hasChanges && (
           <button
             type="button"

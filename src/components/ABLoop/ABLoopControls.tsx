@@ -36,8 +36,8 @@ export function ABLoopControls({
             disabled
               ? 'bg-[#141414] text-[#4B5563] cursor-not-allowed border border-[#1E1E1E]'
               : loopA !== null
-                ? 'bg-[#141414] text-[#818CF8] border-2 border-[#818CF8]'
-                : 'bg-[#141414] text-[#9CA3AF] border border-[#1E1E1E] hover:border-[#818CF8]/50'
+                ? 'bg-[#141414] text-[#FF6B35] border-2 border-[#FF6B35]'
+                : 'bg-[#141414] text-[#9CA3AF] border border-[#1E1E1E] hover:border-[#FF6B35]/50'
           }
         `}
         aria-label="Set loop point A"

@@ -15,6 +15,8 @@
 
 **스타일링**
 - Tailwind CSS 4.x: 유틸리티 기반 CSS
+- lucide-react: 최신 아이콘 라이브러리 (Lucide 아이콘 시스템)
+- Oswald: 섹션 헤더 폰트 (Google Fonts)
 - Dark Theme: Logic Pro, Ableton Live 스타일 다크 테마
 
 **오디오 처리**
@@ -131,8 +133,8 @@ UI 상태 (필요할 때만 업데이트)
 
 **다크 테마 예시**
 ```
-Logic Pro 스타일: 어두운 회색(#1a1a1a) + 밝은 텍스트 + 강조색 블루
-Ableton Live 스타일: 검정(#000000) + 네온 그린 액센트
+Logic Pro 스타일: 어두운 회색(#1A1A1A) + 밝은 텍스트 + 강조색 오렌지(#FF6B35)
+Oswald 헤더 폰트 + JetBrains Mono 본문 + Lucide 아이콘 시스템
 ```
 
 **대안 검토**
@@ -543,6 +545,16 @@ Demucs 처리 시간 측정
 - 스템 믹서 UI 구현 (StemMixerPanel, StemTrack)
 - 분리 API 엔드포인트 (POST /api/v1/separate, SSE 진행률, 스템 다운로드)
 - 파일 해시 기반 캐싱으로 재분리 방지
+
+### Phase 4 → Phase 5
+
+- UI Professional Redesign (SPEC-UI-001)
+- lucide-react 아이콘 시스템 도입
+- Oswald 헤더 폰트 + JetBrains Mono 본문 폰트 체계
+- 액센트 컬러 #818CF8(인디고) → #FF6B35(오렌지) 전면 교체
+- 섹션 라벨 아이콘 + 대문자 스타일링
+- 스템 믹서 악기별 아이콘 추가 (Mic, Drum, Guitar)
+- 키보드 단축키 Q(Jump to A) 추가
 
 ---
 

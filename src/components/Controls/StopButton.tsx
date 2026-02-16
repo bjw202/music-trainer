@@ -18,7 +18,7 @@ export function StopButton({ onStop, disabled = false }: StopButtonProps) {
         ${
           disabled
             ? 'bg-[#1E1E1E] text-[#4B5563] cursor-not-allowed'
-            : 'bg-[#1E1E1E] text-[#9CA3AF] hover:text-[#F5F5F5] hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-[#818CF8]'
+            : 'bg-[#1E1E1E] text-[#9CA3AF] hover:text-[#F5F5F5] hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]'
         }
       `}
       aria-label="Stop"

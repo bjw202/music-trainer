@@ -1,3 +1,4 @@
+import { Scissors, SlidersHorizontal } from 'lucide-react'
 import { useStemStore } from '../../stores/stemStore'
 import { useAudioStore } from '../../stores/audioStore'
 
@@ -26,18 +27,7 @@ export function SeparationButton({ onClick, disabled = false }: SeparationButton
   // 오디오가 로드되지 않았으면 비활성화
   const isDisabled = disabled || !buffer || separationStatus === 'processing' || separationStatus === 'uploading'
 
-  // 버튼 텍스트 결정
-  const getButtonText = (): string => {
-    if (separationStatus === 'completed') {
-      return 'Open Stem Mixer'
-    }
-    return 'Separate Stems'
-  }
-
-  // 버튼 스타일 결정
-  const buttonStyle = separationStatus === 'completed'
-    ? 'bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] text-white hover:from-[#7C3AED] hover:to-[#4F46E5]'
-    : 'bg-[#2A2A2A] text-[#F5F5F5] hover:bg-[#3A3A3A]'
+  const isCompleted = separationStatus === 'completed'
 
   return (
     <button
@@ -46,13 +36,26 @@ export function SeparationButton({ onClick, disabled = false }: SeparationButton
       disabled={isDisabled}
       data-testid="separate-button"
       className={`
-        px-6 py-3 rounded-xl font-medium transition-all duration-200
+        w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200
         disabled:opacity-50 disabled:cursor-not-allowed
-        ${buttonStyle}
+        ${isCompleted
+          ? 'bg-gradient-to-r from-[#8B5CF6] to-[#6366F1] text-white hover:from-[#7C3AED] hover:to-[#4F46E5]'
+          : 'bg-[#2D2D2D] border-2 border-[#FF6B35] text-[#FF6B35] hover:bg-[#FF6B35] hover:text-white'
+        }
       `}
-      aria-label={getButtonText()}
+      aria-label={isCompleted ? 'Open Stem Mixer' : 'Separate Stems'}
     >
-      {getButtonText()}
+      {isCompleted ? (
+        <>
+          <SlidersHorizontal className="w-4 h-4" aria-hidden="true" />
+          Open Stem Mixer
+        </>
+      ) : (
+        <>
+          <Scissors className="w-4 h-4" aria-hidden="true" />
+          Separate Stems
+        </>
+      )}
     </button>
   )
 }

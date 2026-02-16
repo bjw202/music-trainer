@@ -29,8 +29,8 @@ export function DragDropZone({
         bg-[#141414] flex flex-col items-center justify-center
         ${
           isDragging
-            ? 'border-[#818CF8] bg-[#818CF8]/10'
-            : 'border-[#2A2A2A] hover:border-[#818CF8]/50'
+            ? 'border-[#FF6B35] bg-[#FF6B35]/10'
+            : 'border-[#2A2A2A] hover:border-[#FF6B35]/50'
         }
         ${error ? 'border-[#FF6B6B]' : ''}
       `}

@@ -380,3 +380,17 @@ export const STEM_DISPLAY_NAMES: Record<StemName, string> = {
   bass: 'Bass',
   other: 'Other',
 }
+
+/**
+ * Stem 아이콘 이름 (lucide-react 아이콘 매핑)
+ * - vocals: Mic
+ * - drums: custom DrumIcon (SVG)
+ * - bass: Guitar
+ * - other: Guitar
+ */
+export const STEM_ICON_NAMES: Record<StemName, string> = {
+  vocals: 'Mic',
+  drums: 'Drum',
+  bass: 'Guitar',
+  other: 'Guitar',
+}

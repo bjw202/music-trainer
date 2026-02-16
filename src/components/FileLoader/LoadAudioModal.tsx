@@ -161,8 +161,8 @@ export function LoadAudioModal({
             bg-[#0A0A0A] flex flex-col items-center justify-center cursor-pointer
             ${
               isDragging
-                ? 'border-[#818CF8] bg-[#818CF8]/10'
-                : 'border-[#2A2A2A] hover:border-[#818CF8]/50'
+                ? 'border-[#FF6B35] bg-[#FF6B35]/10'
+                : 'border-[#2A2A2A] hover:border-[#FF6B35]/50'
             }
             ${fileError ? 'border-[#FF6B6B]' : ''}
           `}
@@ -182,7 +182,7 @@ export function LoadAudioModal({
         >
           <div className="text-center space-y-4">
             {/* Upload icon */}
-            <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-[#818CF8] to-[#60A5FA] flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto rounded-full bg-gradient-to-br from-[#FF6B35] to-[#60A5FA] flex items-center justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className="w-8 h-8 text-white"
@@ -216,7 +216,7 @@ export function LoadAudioModal({
                 e.stopPropagation()
                 handleClick()
               }}
-              className="px-5 py-2 bg-[#818CF8] text-white rounded-lg font-medium hover:bg-[#818CF8]/90 transition-colors"
+              className="px-5 py-2 bg-[#FF6B35] text-white rounded-lg font-medium hover:bg-[#FF6B35]/90 transition-colors"
             >
               Browse Files
             </button>

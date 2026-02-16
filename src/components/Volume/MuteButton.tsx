@@ -21,7 +21,7 @@ export function MuteButton({ muted, onToggle, disabled = false }: MuteButtonProp
             ? 'bg-[#1E1E1E] text-[#4B5563] cursor-not-allowed'
             : muted
               ? 'bg-[#1E1E1E] text-[#FF6B6B] hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-[#FF6B6B]'
-              : 'bg-[#1E1E1E] text-[#6B7280] hover:text-[#9CA3AF] hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-[#818CF8]'
+              : 'bg-[#1E1E1E] text-[#6B7280] hover:text-[#9CA3AF] hover:bg-[#2A2A2A] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]'
         }
       `}
       aria-label={muted ? 'Unmute' : 'Mute'}

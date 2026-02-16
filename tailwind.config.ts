@@ -24,7 +24,7 @@ const config: Config = {
           card: '#1E1E1E',
         },
         accent: {
-          primary: '#818CF8',
+          primary: '#FF6B35',
           blue: '#60A5FA',
           green: '#34D399',
           amber: '#FBBF24',
@@ -40,6 +40,7 @@ const config: Config = {
       fontFamily: {
         sans: ['Inter', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
+        heading: ['Oswald', 'sans-serif'],
       },
       borderRadius: {
         '2xl': '16px',

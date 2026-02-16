@@ -1,5 +1,50 @@
 import React from 'react'
+import { Mic, Guitar } from 'lucide-react'
 import { StemName, STEM_COLORS, STEM_DISPLAY_NAMES } from '../../stores/stemStore'
+
+/**
+ * 커스텀 드럼 아이콘 (lucide에 drum 아이콘 없음)
+ */
+function DrumIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      style={style}
+      aria-hidden="true"
+    >
+      <path d="M2 12h20" />
+      <path d="M4 12v4a8 4 0 0 0 16 0v-4" />
+      <path d="M4 12V8a8 4 0 0 1 16 0v4" />
+      <path d="M8 8v8" />
+      <path d="M16 8v8" />
+    </svg>
+  )
+}
+
+/**
+ * Stem 아이콘 렌더러
+ */
+function StemIcon({ stemName, className }: { stemName: StemName; className?: string }) {
+  const color = STEM_COLORS[stemName]
+  const iconStyle = { color }
+
+  switch (stemName) {
+    case 'vocals':
+      return <Mic className={className} style={iconStyle} aria-hidden="true" />
+    case 'drums':
+      return <DrumIcon className={className} style={iconStyle} />
+    case 'bass':
+    case 'other':
+      return <Guitar className={className} style={iconStyle} aria-hidden="true" />
+  }
+}
 
 /**
  * StemTrack 컴포넌트 props
@@ -63,12 +108,9 @@ export function StemTrack({
         boxShadow: solo ? `0 0 12px ${color}40` : undefined,
       }}
     >
-      {/* Stem 이름 및 색상 표시 */}
-      <div className="flex items-center gap-2 min-w-[70px]">
-        <div
-          className="w-3 h-3 rounded-full"
-          style={{ backgroundColor: color }}
-        />
+      {/* Stem 아이콘 및 이름 */}
+      <div className="flex items-center gap-2 min-w-[80px]">
+        <StemIcon stemName={stemName} className="w-4 h-4 shrink-0" />
         <span className="text-sm font-medium text-[#F5F5F5]">
           {displayName}
         </span>
