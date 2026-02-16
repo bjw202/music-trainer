@@ -37,7 +37,11 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 10
 
     # CORS 허용 오리진 (str로 받아 pydantic-settings JSON 우선 파싱 우회)
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_origins: str = (
+        "https://music-trainer-sigma.vercel.app,"
+        "http://localhost:5173,"
+        "http://localhost:3000"
+    )
 
     # 서버 포트
     port: int = 8000
