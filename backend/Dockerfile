@@ -1,8 +1,8 @@
 FROM python:3.12-slim
 
-# ffmpeg와 curl 설치 (health check용)
+# ffmpeg 설치 (오디오 처리용)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg curl && \
+    apt-get install -y --no-install-recommends ffmpeg && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -21,11 +21,5 @@ COPY app/ ./app/
 # 다운로드 디렉터리 생성
 RUN mkdir -p /tmp/ytdlp_downloads
 
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl --fail http://localhost:8000/api/v1/health || exit 1
-
-# Start application with Railway's dynamic PORT
+# Railway 동적 PORT 사용 (HEALTHCHECK는 railway.json에서 관리)
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
