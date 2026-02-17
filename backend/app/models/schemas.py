@@ -99,3 +99,17 @@ class StemInfo(BaseModel):
     name: str  # vocals, drums, bass, other
     url: str  # 다운로드 URL
     size_bytes: int | None = None  # 파일 크기 (선택사항)
+
+
+# ==============================================================================
+# BPM Analysis Schemas
+# ==============================================================================
+
+
+class BpmAnalysisResponse(BaseModel):
+    """BPM 분석 응답 모델."""
+
+    bpm: float
+    beats: list[float]
+    confidence: float
+    file_hash: str

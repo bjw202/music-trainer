@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routes import health, separation, youtube
+from app.routes import bpm, health, separation, youtube
 from app.services.cleanup_service import run_cleanup_loop
 from app.services.separation_service import separation_service
 from app.services.youtube_service import youtube_service
@@ -131,6 +131,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api/v1")
     app.include_router(youtube.router, prefix="/api/v1")
     app.include_router(separation.router, prefix="/api/v1")
+    app.include_router(bpm.router, prefix="/api/v1")
 
     return app
 
