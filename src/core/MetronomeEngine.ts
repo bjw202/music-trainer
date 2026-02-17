@@ -65,8 +65,8 @@ export class MetronomeEngine {
   private beats: number[] = []
   private nextBeatIndex = 0
   private currentSpeed = 1.0
-  private currentSourceTime = 0
-  private syncedAcTime = 0 // syncToPlaybackTime 호출 시점의 AudioContext 시간
+  private anchorSourceTime = 0 // 앵커 동기화 시점의 원본 오디오 위치
+  private anchorAcTime = 0 // 앵커 동기화 시점의 AudioContext 시간
   private isRunning = false
   private scheduledBeats: Set<number> = new Set()
   private lastSourceTime = -1 // 마지막으로 동기화된 sourceTime (중복 갱신 방지)
@@ -145,14 +145,14 @@ export class MetronomeEngine {
   syncToPlaybackTime(sourceTime: number, speed: number): void {
     this.currentSpeed = speed
 
-    // sourceTime이 실제로 변경된 경우에만 동기화 기준점 갱신
+    // sourceTime이 실제로 변경된 경우에만 앵커 기준점 갱신
     // ScriptProcessorNode 버퍼(~93ms)보다 rAF(~16ms)가 더 자주 호출되므로
-    // 동일한 sourceTime에서 syncedAcTime만 갱신되면 오차가 누적됨
+    // 동일한 sourceTime에서 anchorAcTime만 갱신되면 오차가 누적됨
     if (sourceTime !== this.lastSourceTime) {
       this.lastSourceTime = sourceTime
-      this.currentSourceTime = sourceTime
-      // 동기화 시점의 AudioContext 시간 저장 (스케줄 기준점)
-      this.syncedAcTime = this.audioContext.currentTime
+      this.anchorSourceTime = sourceTime
+      // 동기화 시점의 AudioContext 시간 저장 (앵커 기준점)
+      this.anchorAcTime = this.audioContext.currentTime
 
       // nextBeatIndex만 조정 (scheduledBeats는 보존)
       this._updateNextBeatIndex(sourceTime)
@@ -160,17 +160,49 @@ export class MetronomeEngine {
   }
 
   /**
+   * 속도 변경 시 앵커 기준점을 즉시 갱신합니다.
+   * AudioEngine의 speedChangeListener에서 호출됩니다.
+   *
+   * 앵커 기준점을 현재 보간 위치로 재설정하여 속도 변경 직후 스케줄 오차를 방지합니다.
+   * 이미 스케줄된 비트는 무효화됩니다.
+   *
+   * @param newSpeed - 새로운 재생 속도 (0.5-2.0)
+   * @param currentSourceTime - 속도 변경 시점의 원본 오디오 위치 (AudioEngine에서 제공)
+   */
+  onSpeedChange(newSpeed: number, currentSourceTime: number): void {
+    // 변경 전 마지막 보간 위치를 새 앵커로 설정
+    this.anchorSourceTime = this.getInterpolatedTime()
+    this.anchorAcTime = this.audioContext.currentTime
+    this.currentSpeed = newSpeed
+    // 속도 변경으로 인해 기존 스케줄된 비트들은 잘못된 시간에 설정되었으므로 무효화
+    this.scheduledBeats.clear()
+    // 새 속도 기준으로 nextBeatIndex 재조정
+    this._updateNextBeatIndex(currentSourceTime)
+  }
+
+  /**
    * Seek 시 완전 리셋합니다.
    * 탐색(seek), 루프백 등 비연속적 위치 이동 시에만 호출하세요.
    */
   seekTo(sourceTime: number, speed: number): void {
-    this.currentSourceTime = sourceTime
+    this.anchorSourceTime = sourceTime
     this.currentSpeed = speed
-    this.syncedAcTime = this.audioContext.currentTime
+    this.anchorAcTime = this.audioContext.currentTime
 
     // seek 시에만 scheduledBeats 초기화
     this.scheduledBeats.clear()
     this._updateNextBeatIndex(sourceTime)
+  }
+
+  /**
+   * 앵커 기준점에서 선형 보간하여 현재 원본 오디오 위치를 계산합니다.
+   * ScriptProcessorNode 버퍼 갱신 주기(~93ms) 사이에도 정확한 위치를 제공합니다.
+   *
+   * 공식: anchorSourceTime + (audioContext.currentTime - anchorAcTime) * currentSpeed
+   */
+  private getInterpolatedTime(): number {
+    const elapsed = this.audioContext.currentTime - this.anchorAcTime
+    return this.anchorSourceTime + elapsed * this.currentSpeed
   }
 
   /**
@@ -202,15 +234,17 @@ export class MetronomeEngine {
     if (!this.isRunning) return
 
     const now = this.audioContext.currentTime
+    const interpolatedTime = this.getInterpolatedTime()
 
     while (this.nextBeatIndex < this.beats.length) {
       const beatOriginalTime = this.beats[this.nextBeatIndex]
 
-      // 원본 시간을 AudioContext 재생 시간으로 변환
-      // scheduleTime = syncedAcTime + (beatTime - sourceTime) / speed
-      // syncedAcTime과 currentSourceTime은 동일 시점 값이므로 now에 독립적
-      const deltaOriginal = beatOriginalTime - this.currentSourceTime
-      const scheduleTime = this.syncedAcTime + deltaOriginal / this.currentSpeed
+      // 보간된 현재 위치 기준으로 비트까지의 원본 시간 델타 계산
+      // scheduleTime = now + deltaOriginal / speed
+      // 앵커 기준점(anchorAcTime, anchorSourceTime) 대신 보간 위치(now, interpolatedTime)를 사용하여
+      // ScriptProcessorNode 버퍼 갱신 지연(~93ms)에 의한 드리프트를 제거
+      const deltaOriginal = beatOriginalTime - interpolatedTime
+      const scheduleTime = now + deltaOriginal / this.currentSpeed
 
       // 과거 비트는 건너뛰기
       if (scheduleTime < now) {

@@ -85,6 +85,8 @@ export class AudioEngine {
   private timeListeners: Set<(time: number, speed: number) => void> = new Set()
   // Seek 리스너 (비연속적 위치 이동 시 호출)
   private seekListeners: Set<(time: number, speed: number) => void> = new Set()
+  // 속도 변경 리스너 (setSpeed 호출 시 즉시 알림)
+  private speedChangeListeners: Set<(speed: number, sourceTime: number) => void> = new Set()
 
   constructor(events: AudioEngineEvents = {}) {
     this.events = events
@@ -118,6 +120,21 @@ export class AudioEngine {
    */
   removeSeekListener(listener: (time: number, speed: number) => void): void {
     this.seekListeners.delete(listener)
+  }
+
+  /**
+   * 속도 변경 리스너 등록 (setSpeed 호출 시 즉시 알림)
+   * MetronomeEngine의 onSpeedChange 등 앵커 기준점 재설정이 필요한 경우 사용합니다.
+   */
+  addSpeedChangeListener(listener: (speed: number, sourceTime: number) => void): void {
+    this.speedChangeListeners.add(listener)
+  }
+
+  /**
+   * 속도 변경 리스너 해제
+   */
+  removeSpeedChangeListener(listener: (speed: number, sourceTime: number) => void): void {
+    this.speedChangeListeners.delete(listener)
   }
 
   /**
@@ -438,6 +455,12 @@ export class AudioEngine {
 
     if (this.soundtouch) {
       this.soundtouch.tempo = clampedSpeed
+    }
+
+    // 속도 변경 리스너에 새 속도와 현재 소스 위치 알림
+    // 메트로놈 앵커 기준점을 즉시 재설정하여 스케줄 드리프트 방지
+    for (const listener of this.speedChangeListeners) {
+      listener(clampedSpeed, this.getCurrentTime())
     }
   }
 

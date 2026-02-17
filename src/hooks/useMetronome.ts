@@ -33,6 +33,7 @@ export function useMetronome(
   const metronomeRef = useRef<MetronomeEngine | null>(null)
   const listenerRef = useRef<((time: number, speed: number) => void) | null>(null)
   const seekListenerRef = useRef<((time: number, speed: number) => void) | null>(null)
+  const speedListenerRef = useRef<((speed: number, sourceTime: number) => void) | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -65,6 +66,10 @@ export function useMetronome(
         audioEngine.removeSeekListener(seekListenerRef.current)
         seekListenerRef.current = null
       }
+      if (speedListenerRef.current) {
+        audioEngine.removeSpeedChangeListener(speedListenerRef.current)
+        speedListenerRef.current = null
+      }
 
       // 기존 엔진 정리
       if (metronomeRef.current) {
@@ -91,6 +96,13 @@ export function useMetronome(
       }
       seekListenerRef.current = seekListener
       audioEngine.addSeekListener(seekListener)
+
+      // 속도 변경 리스너 등록 (속도 변경 시 앵커 기준점 즉시 재설정)
+      const speedListener = (speed: number, sourceTime: number) => {
+        metronomeRef.current?.onSpeedChange(speed, sourceTime)
+      }
+      speedListenerRef.current = speedListener
+      audioEngine.addSpeedChangeListener(speedListener)
 
       setIsReady(true)
       setError(null)
@@ -119,6 +131,10 @@ export function useMetronome(
       if (seekListenerRef.current && audioEngine) {
         audioEngine.removeSeekListener(seekListenerRef.current)
         seekListenerRef.current = null
+      }
+      if (speedListenerRef.current && audioEngine) {
+        audioEngine.removeSpeedChangeListener(speedListenerRef.current)
+        speedListenerRef.current = null
       }
       // 엔진 정리
       if (metronomeRef.current) {
