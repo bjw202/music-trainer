@@ -27,6 +27,7 @@ import { useWaveform } from '../../hooks/useWaveform'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFileLoader } from '../../hooks/useFileLoader'
 import { useSeparation } from '../../hooks/useSeparation'
+import { useMetronome } from '../../hooks/useMetronome'
 import { useAudioStore } from '../../stores/audioStore'
 import { useControlStore } from '../../stores/controlStore'
 import { useLoopStore } from '../../stores/loopStore'
@@ -145,6 +146,9 @@ export function Player() {
   // 활성 엔진 기반으로 재생 제어 및 속도/피치 연결
   const playback = usePlayback(activeEngine)
   useSpeedPitch(activeEngine)
+
+  // 메트로놈 엔진 연결 (AudioEngine에서 직접 시간 동기화)
+  useMetronome(engine)
 
   // canPlay: 현재 활성 엔진에 따라 재생 가능 여부 결정
   const canPlay = isStemMode && isStemPlayable

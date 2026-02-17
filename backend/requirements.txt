@@ -22,5 +22,5 @@ aiofiles>=23.0.0
 
 # BPM detection dependencies
 numpy>=1.24.0
-madmom>=0.16.1
+# madmom>=0.16.1  # Python 3.13 비호환 (Cython 빌드 실패) - librosa fallback 사용
 librosa>=0.10.0

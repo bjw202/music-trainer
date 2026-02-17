@@ -81,8 +81,43 @@ export class AudioEngine {
   // 이벤트 핸들러
   private readonly events: AudioEngineEvents
 
+  // 직접 시간 리스너 (React 상태를 거치지 않는 고속 경로)
+  private timeListeners: Set<(time: number, speed: number) => void> = new Set()
+  // Seek 리스너 (비연속적 위치 이동 시 호출)
+  private seekListeners: Set<(time: number, speed: number) => void> = new Set()
+
   constructor(events: AudioEngineEvents = {}) {
     this.events = events
+  }
+
+  /**
+   * 직접 시간 리스너 등록 (React 상태를 거치지 않는 고속 동기화 경로)
+   * MetronomeEngine 등 정밀 타이밍이 필요한 모듈에서 사용합니다.
+   */
+  addTimeListener(listener: (time: number, speed: number) => void): void {
+    this.timeListeners.add(listener)
+  }
+
+  /**
+   * 직접 시간 리스너 해제
+   */
+  removeTimeListener(listener: (time: number, speed: number) => void): void {
+    this.timeListeners.delete(listener)
+  }
+
+  /**
+   * Seek 리스너 등록 (비연속적 위치 이동 시 호출)
+   * MetronomeEngine의 seekTo 등 scheduledBeats 초기화가 필요한 경우 사용합니다.
+   */
+  addSeekListener(listener: (time: number, speed: number) => void): void {
+    this.seekListeners.add(listener)
+  }
+
+  /**
+   * Seek 리스너 해제
+   */
+  removeSeekListener(listener: (time: number, speed: number) => void): void {
+    this.seekListeners.delete(listener)
   }
 
   /**
@@ -322,6 +357,11 @@ export class AudioEngine {
     this.pauseTime = clampedTime
     this.endedFired = false
 
+    // Seek 리스너에 비연속적 위치 변경 알림
+    for (const listener of this.seekListeners) {
+      listener(clampedTime, this.currentSpeed)
+    }
+
     if (!this.isPlaying) {
       this.events.onTimeUpdate?.(clampedTime)
     }
@@ -524,6 +564,12 @@ export class AudioEngine {
     if (delta >= 16) {
       const currentTime = this.getCurrentTime()
       this.events.onTimeUpdate?.(currentTime)
+
+      // 직접 시간 리스너에 시간과 속도를 함께 전달 (React 상태 우회)
+      for (const listener of this.timeListeners) {
+        listener(currentTime, this.currentSpeed)
+      }
+
       this.lastUpdateTime = now
     }
 

@@ -17,6 +17,7 @@ export interface MetronomeConfig {
   clickDuration?: number // 기본값: 0.03초
   lookaheadMs?: number // 기본값: 25ms
   scheduleAheadTime?: number // 기본값: 0.1초 (100ms)
+  initialVolume?: number // 기본값: 50 (0-100)
 }
 
 /**
@@ -65,8 +66,10 @@ export class MetronomeEngine {
   private nextBeatIndex = 0
   private currentSpeed = 1.0
   private currentSourceTime = 0
+  private syncedAcTime = 0 // syncToPlaybackTime 호출 시점의 AudioContext 시간
   private isRunning = false
   private scheduledBeats: Set<number> = new Set()
+  private lastSourceTime = -1 // 마지막으로 동기화된 sourceTime (중복 갱신 방지)
 
   constructor(config: MetronomeConfig) {
     this.audioContext = config.audioContext
@@ -78,6 +81,10 @@ export class MetronomeEngine {
     // 메트로놈 전용 GainNode 생성 (마스터와 독립)
     this.metronomeGain = this.audioContext.createGain()
     this.metronomeGain.connect(this.audioContext.destination)
+
+    // 초기 볼륨 설정
+    const initialVolume = config.initialVolume ?? 50
+    this.metronomeGain.gain.value = Math.max(0, Math.min(100, initialVolume)) / 100
 
     // 인라인 Web Worker 생성
     const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' })
@@ -101,7 +108,8 @@ export class MetronomeEngine {
   setVolume(volume: number): void {
     // 0-100을 0.0-1.0으로 변환
     const gainValue = Math.max(0, Math.min(100, volume)) / 100
-    this.metronomeGain.gain.value = gainValue
+    // setTargetAtTime으로 부드럽게 전환 (직접 value 대입은 step 불연속 발생)
+    this.metronomeGain.gain.setTargetAtTime(gainValue, this.audioContext.currentTime, 0.01)
   }
 
   /**
@@ -127,22 +135,47 @@ export class MetronomeEngine {
   }
 
   /**
-   * 현재 재생 위치와 속도를 동기화합니다.
-   * AudioEngine의 sourcePosition과 speed를 전달받습니다.
+   * 현재 재생 위치와 속도를 동기화합니다 (고속 경로).
+   * AudioEngine의 onTimeUpdate에서 직접 호출됩니다.
+   * scheduledBeats를 초기화하지 않아 이미 스케줄된 비트를 보존합니다.
    *
    * @param sourceTime - 원본 오디오 시간 (초)
    * @param speed - 재생 속도 (0.5-2.0)
    */
   syncToPlaybackTime(sourceTime: number, speed: number): void {
-    this.currentSourceTime = sourceTime
     this.currentSpeed = speed
 
-    // 비트 인덱스 재조정 (이진 검색)
+    // sourceTime이 실제로 변경된 경우에만 동기화 기준점 갱신
+    // ScriptProcessorNode 버퍼(~93ms)보다 rAF(~16ms)가 더 자주 호출되므로
+    // 동일한 sourceTime에서 syncedAcTime만 갱신되면 오차가 누적됨
+    if (sourceTime !== this.lastSourceTime) {
+      this.lastSourceTime = sourceTime
+      this.currentSourceTime = sourceTime
+      // 동기화 시점의 AudioContext 시간 저장 (스케줄 기준점)
+      this.syncedAcTime = this.audioContext.currentTime
+
+      // nextBeatIndex만 조정 (scheduledBeats는 보존)
+      this._updateNextBeatIndex(sourceTime)
+    }
+  }
+
+  /**
+   * Seek 시 완전 리셋합니다.
+   * 탐색(seek), 루프백 등 비연속적 위치 이동 시에만 호출하세요.
+   */
+  seekTo(sourceTime: number, speed: number): void {
+    this.currentSourceTime = sourceTime
+    this.currentSpeed = speed
+    this.syncedAcTime = this.audioContext.currentTime
+
+    // seek 시에만 scheduledBeats 초기화
+    this.scheduledBeats.clear()
     this._updateNextBeatIndex(sourceTime)
   }
 
   /**
    * 현재 위치에 따라 다음 비트 인덱스를 업데이트합니다.
+   * scheduledBeats는 건드리지 않습니다.
    */
   private _updateNextBeatIndex(currentTime: number): void {
     // 이진 검색으로 currentTime 이후 첫 번째 비트 찾기
@@ -159,7 +192,6 @@ export class MetronomeEngine {
     }
 
     this.nextBeatIndex = lo
-    this.scheduledBeats.clear()
   }
 
   /**
@@ -175,9 +207,10 @@ export class MetronomeEngine {
       const beatOriginalTime = this.beats[this.nextBeatIndex]
 
       // 원본 시간을 AudioContext 재생 시간으로 변환
-      // scheduleTime = currentTime + (beatTime - sourceTime) / speed
+      // scheduleTime = syncedAcTime + (beatTime - sourceTime) / speed
+      // syncedAcTime과 currentSourceTime은 동일 시점 값이므로 now에 독립적
       const deltaOriginal = beatOriginalTime - this.currentSourceTime
-      const scheduleTime = now + deltaOriginal / this.currentSpeed
+      const scheduleTime = this.syncedAcTime + deltaOriginal / this.currentSpeed
 
       // 과거 비트는 건너뛰기
       if (scheduleTime < now) {
@@ -207,14 +240,34 @@ export class MetronomeEngine {
   /**
    * 개별 클릭을 스케줄링합니다.
    * OscillatorNode는 일회용이므로 매번 새로 생성합니다.
+   *
+   * 진폭 엔벨로프(Chris Wilson 패턴)로 파형 불연속 방지:
+   * - 클릭별 GainNode로 급격한 시작/종료 팝 노이즈 제거
+   * - setValueAtTime(0) → linearRamp(1.0) → exponentialRamp(0.001) 엔벨로프
    */
   private _scheduleClick(time: number, frequency: number, duration: number): void {
     const osc = this.audioContext.createOscillator()
     osc.frequency.value = frequency
-    osc.connect(this.metronomeGain)
+
+    // 클릭별 GainNode로 진폭 엔벨로프 적용
+    const clickGain = this.audioContext.createGain()
+    clickGain.gain.setValueAtTime(0, time)
+    clickGain.gain.linearRampToValueAtTime(1.0, time + 0.002)
+    clickGain.gain.exponentialRampToValueAtTime(0.001, time + duration)
+
+    // 라우팅: OscillatorNode → clickGain → metronomeGain
+    osc.connect(clickGain)
+    clickGain.connect(this.metronomeGain)
+
     osc.start(time)
-    osc.stop(time + duration)
-    // OscillatorNode는 stop 후 자동으로 disconnect됨
+    // 엔벨로프 종료 후 약간 여유를 두고 stop
+    osc.stop(time + duration + 0.01)
+
+    // 리소스 정리
+    osc.onended = () => {
+      osc.disconnect()
+      clickGain.disconnect()
+    }
   }
 
   /**

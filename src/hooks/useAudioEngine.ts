@@ -1,31 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { AudioEngine } from '../core/AudioEngine'
-import { MetronomeEngine } from '../core/MetronomeEngine'
 import { useAudioStore } from '../stores/audioStore'
 import { usePlayerStore } from '../stores/playerStore'
 import { useControlStore } from '../stores/controlStore'
 import { useLoopStore } from '../stores/loopStore'
 
 /**
- * 오디오 엔진 생명주크 관리 훅
+ * 오디오 엔진 생명주기 관리 훅
  *
  * @returns {Object} - 엔진 인스턴스, 준비 상태, 에러, 초기화 함수, 파일 로딩 함수
  */
 export function useAudioEngine() {
   const engineRef = useRef<AudioEngine | null>(null)
-  const metronomeRef = useRef<MetronomeEngine | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  /**
-   * 메트로놈 동기화 헬퍼 함수
-   */
-  const syncMetronome = useCallback((time: number, speed: number) => {
-    if (!metronomeRef.current) {
-      return
-    }
-    metronomeRef.current.syncToPlaybackTime(time, speed)
-  }, [])
 
   /**
    * 오디오 엔진 초기화
@@ -40,41 +28,21 @@ export function useAudioEngine() {
         onTimeUpdate: (time: number) => {
           usePlayerStore.getState().setCurrentTime(time)
 
-          // 메트로놈 동기화
-          const speed = engine.getSpeed()
-          syncMetronome(time, speed)
-
           // 루프 처리
           const { loopA, loopB, loopEnabled } = useLoopStore.getState()
           if (loopEnabled && loopA !== null && loopB !== null) {
             if (time >= loopB) {
               engine.seek(loopA)
-              // 루프백 시 메트로놈도 리셋
-              if (metronomeRef.current) {
-                metronomeRef.current.syncToPlaybackTime(loopA, speed)
-              }
             }
           }
         },
         onEnded: () => {
           usePlayerStore.getState().stop()
-          // 메트로놈 정지
-          if (metronomeRef.current) {
-            metronomeRef.current.stop()
-          }
         },
       })
 
       await engine.initialize()
       engineRef.current = engine
-
-      // 메트로놈 엔진 초기화
-      const context = engine.getContext()
-      if (context) {
-        metronomeRef.current = new MetronomeEngine({
-          audioContext: context,
-        })
-      }
 
       // E2E 테스트에서 엔진 내부 상태를 검증할 수 있도록 노출
       if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
@@ -143,8 +111,6 @@ export function useAudioEngine() {
   // 컴포넌트 언마운트 시 정리
   useEffect(() => {
     return () => {
-      metronomeRef.current?.dispose()
-      metronomeRef.current = null
       engineRef.current?.dispose().catch(console.error)
       engineRef.current = null
       if (import.meta.env.DEV) {
@@ -156,11 +122,9 @@ export function useAudioEngine() {
 
   return {
     engine: engineRef.current,
-    metronome: metronomeRef.current,
     isReady,
     error,
     initialize,
     loadFile,
-    syncMetronome,
   }
 }

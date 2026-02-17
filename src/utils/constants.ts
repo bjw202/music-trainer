@@ -7,7 +7,7 @@ export const KEYBOARD_SHORTCUTS = {
   ARROW_RIGHT: 'ArrowRight',
   SET_A: 'i',
   SET_B: 'o',
-  JUMP_TO_A: 'q',
+  JUMP_TO_A: 'a',
   MUTE: 'm',
   SPEED_UP: '=',
   SPEED_DOWN: '-',
