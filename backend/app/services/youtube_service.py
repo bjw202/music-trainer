@@ -6,7 +6,6 @@ yt-dlp를 래핑하여 비동기 변환 기능을 제공합니다.
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 import os
 import uuid
@@ -30,38 +29,11 @@ class YouTubeService:
     인메모리 딕셔너리로 태스크 상태를 추적합니다.
     """
 
-    # 쿠키 파일 경로 (앱 시작 시 한 번만 디코딩/저장)
-    _cookie_path: str | None = None
-
     def __init__(self, download_dir: str | None = None) -> None:
         settings = get_settings()
         self.download_dir = Path(download_dir or settings.download_dir)
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_downloads)
         self._tasks: dict[str, TaskStatus] = {}
-        self._setup_cookies(settings.youtube_cookies)
-
-    def _setup_cookies(self, youtube_cookies: str) -> None:
-        """base64 인코딩된 쿠키를 디코딩하여 파일로 저장합니다."""
-        if not youtube_cookies:
-            logger.info("YouTube cookies not configured, proceeding without authentication")
-            return
-
-        cookie_path = "/tmp/yt_cookies.txt"
-        try:
-            decoded = base64.b64decode(youtube_cookies)
-            with open(cookie_path, "wb") as f:
-                f.write(decoded)
-            self._cookie_path = cookie_path
-            logger.info("YouTube cookies loaded successfully: %s", cookie_path)
-        except Exception:
-            logger.exception("Failed to decode YouTube cookies, proceeding without authentication")
-            self._cookie_path = None
-
-    def _get_cookie_opts(self) -> dict[str, Any]:
-        """쿠키 파일이 설정된 경우 yt-dlp cookiefile 옵션을 반환합니다."""
-        if self._cookie_path:
-            return {"cookiefile": self._cookie_path}
-        return {}
 
     @property
     def tasks(self) -> dict[str, TaskStatus]:
@@ -111,7 +83,6 @@ class YouTubeService:
             "noplaylist": True,
             "socket_timeout": 30,
         }
-        ydl_opts.update(self._get_cookie_opts())
 
         loop = asyncio.get_event_loop()
 
@@ -216,7 +187,6 @@ class YouTubeService:
                 "quiet": True,
                 "no_warnings": True,
             }
-            ydl_opts.update(self._get_cookie_opts())
 
             loop = asyncio.get_event_loop()
 
