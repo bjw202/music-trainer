@@ -17,6 +17,12 @@
   - 각 스템별 개별 볼륨 제어 (0-100%)
   - 솔로/뮤트 기능으로 특정 악기 집중 연습
   - SoundTouch 통합으로 속도/피치 동기화
+- **BPM 감지 및 메트로놈**: 자동 템포 분석 및 클릭 재생
+  - 오디오 로드 시 자동 BPM 분석 (madmom/librosa)
+  - 감지된 BPM 및 신뢰도 점수 표시
+  - 메트로놈 클릭 재생 (다운비트/업비트 구분)
+  - 속도 변경, Seek, A-B 루프와 자동 동기화
+  - 독립 메트로놈 볼륨 제어
 
 ## Tech Stack
 
@@ -38,6 +44,8 @@
 - **ffmpeg** - Audio processing
 - **Demucs 4.x** - AI source separation (htdemucs model)
 - **PyTorch (CPU)** - ML runtime for Demucs
+- **madmom 0.17.0** - BPM detection and beat tracking
+- **librosa 0.10.2** - Audio analysis (fallback BPM detection)
 - **Uvicorn** - ASGI server
 - **pytest** - Testing framework (65 tests)
 
@@ -285,20 +293,28 @@ graph LR
 / (repository root)
 ├── src/                        # Frontend
 │   ├── api/                   # Backend API client
-│   │   └── separation.ts     # 분리 API 클라이언트 (업로드, SSE, 다운로드)
+│   │   ├── separation.ts     # 분리 API 클라이언트 (업로드, SSE, 다운로드)
+│   │   └── bpm.ts            # BPM 분석 API 클라이언트
 │   ├── components/            # Reusable UI components
 │   │   ├── FileLoader/        # File loading components
 │   │   │   └── LoadAudioModal.tsx  # Modal for loading new audio during playback
-│   │   └── YouTubeInput/      # YouTube URL input component
+│   │   ├── YouTubeInput/      # YouTube URL input component
+│   │   └── Metronome/         # Metronome UI components
+│   │       └── MetronomePanel.tsx  # BPM 표시, 토글, 볼륨 UI
 │   ├── core/                  # Core business logic
-│   │   └── StemMixer.ts      # 멀티트랙 스템 믹서 오디오 엔진
+│   │   ├── StemMixer.ts      # 멀티트랙 스템 믹서 오디오 엔진
+│   │   └── MetronomeEngine.ts # Lookahead Scheduler, OscillatorNode
 │   ├── stores/                # Zustand state stores
 │   │   ├── youtubeStore.ts   # YouTube conversion state
-│   │   └── stemStore.ts      # 스템 분리/믹서 상태 관리
+│   │   ├── stemStore.ts      # 스템 분리/믹서 상태 관리
+│   │   └── bpmStore.ts       # BPM 분석/메트로놈 상태 관리
 │   ├── hooks/                 # Custom React hooks
 │   │   ├── useYouTubeConvert.ts  # YouTube conversion hook
 │   │   ├── useStemMixer.ts       # StemMixer 래퍼 훅
-│   │   └── useSeparation.ts      # 분리 프로세스 관리 훅
+│   │   ├── useSeparation.ts      # 분리 프로세스 관리 훅
+│   │   └── useMetronome.ts       # MetronomeEngine 라이프사이클 훅
+│   ├── workers/               # Web Workers
+│   │   └── metronome-worker.ts  # 메트로놈 타이머 (25ms 루프)
 │   ├── utils/                 # Utility functions
 │   ├── types/                 # TypeScript type definitions
 │   ├── test/                  # Test setup and utilities
@@ -312,10 +328,12 @@ graph LR
 │   │   ├── routes/           # API routes
 │   │   │   ├── health.py     # Health check endpoint
 │   │   │   ├── youtube.py    # YouTube conversion endpoints
-│   │   │   └── separation.py # 음원 분리 엔드포인트
+│   │   │   ├── separation.py # 음원 분리 엔드포인트
+│   │   │   └── bpm.py        # BPM 분석 엔드포인트
 │   │   ├── services/         # Business logic
 │   │   │   ├── youtube_service.py      # yt-dlp wrapper
 │   │   │   ├── separation_service.py   # Demucs 래퍼
+│   │   │   ├── bpm_service.py          # madmom/librosa BPM 감지
 │   │   │   └── cleanup_service.py      # Temporary file cleanup
 │   │   ├── models/           # Pydantic schemas
 │   │   └── utils/            # Utilities

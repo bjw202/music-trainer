@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-17
+
+### Added
+
+- **BPM 자동 감지 및 메트로놈 기능 (SPEC-BPM-001)**: madmom/librosa 기반 BPM 분석 및 Web Worker 메트로놈
+  - 오디오 파일 로드 시 자동 BPM 분석 (madmom DBNBeatTracker primary, librosa fallback)
+  - 감지된 BPM 및 신뢰도 점수 표시
+  - 비트 타임스탬프 저장으로 정밀 메트로놈 동기화
+  - Web Worker Lookahead Scheduler로 서브밀리초 타이밍 정밀도
+  - OscillatorNode 클릭 사운드 (다운비트 880Hz, 업비트 440Hz)
+  - 재생 속도 변경 시 자동 메트로놈 타이밍 조정
+  - Seek 시 다음 비트부터 재동기화
+  - A-B 루프 지원 (루프 구간 내 비트만 재생)
+  - 독립 메트로놈 볼륨 제어 (0-100%)
+  - 백엔드 BPM 분석 API: `POST /api/v1/bpm/analyze`
+  - SHA256 파일 해시 기반 캐싱
+
+### Technical Details
+
+- **Backend**: madmom 0.17.0, librosa 0.10.2, FastAPI
+- **Frontend**: Web Worker, OscillatorNode, Zustand bpmStore
+- **Architecture**: 하이브리드 (백엔드 madmom 분석 + 프론트엔드 Lookahead Scheduler)
+- **오디오 그래프**: 메트로놈은 SoundTouch 파이프라인 우회 (독립 GainNode -> Destination)
+- **동기화**: 동일 AudioContext 공유, 원본 시간 기준 비트 타임스탬프
+
 ## [0.3.4] - 2026-02-17
 
 ### Reverted
