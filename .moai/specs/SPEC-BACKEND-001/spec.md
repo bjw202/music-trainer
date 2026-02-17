@@ -5,7 +5,7 @@
 - **SPEC ID**: SPEC-BACKEND-001
 - **제목**: 백엔드 프로덕션 안정화 (YouTube 봇 탐지, 환경변수, OOM 해결)
 - **생성일**: 2026-02-17
-- **상태**: 완료 (Phase 1-2), Phase 3 Optional 미구현
+- **상태**: 아카이브 (Railway 배포 포기)
 - **우선순위**: Critical
 - **영향받는 컴포넌트**:
   - backend/app/services/youtube_service.py
@@ -376,3 +376,46 @@ except Exception as e:
 **작성자**: MoAI manager-spec 에이전트
 **검토자**: 사용자 승인 대기
 **최종 수정일**: 2026-02-17
+
+---
+
+## 아카이브 사유
+
+### 결정
+
+**날짜**: 2026-02-17
+**결정**: Railway 배포 전략 포기 → SPEC 아카이브 처리
+
+### 포기 이유
+
+Railway 프리 플랜의 구조적 제약으로 인해 프로덕션 안정화 목표 달성이 불가능하다고 판단:
+
+1. **메모리 제한 (512MB-1GB)**: Demucs split=True 적용으로 OOM 완화 가능하나, 장시간 오디오 처리 시 여전히 위험
+2. **YouTube 봇 탐지**: 쿠키 인증 방식은 임시방편이며, Railway IP 환경에서 추가 차단 가능
+3. **비용 대비 효과**: Railway 유료 플랜 비용 대비 자체 서버 또는 대안 플랫폼 검토가 더 효율적
+
+### 잔존 변경사항 요약
+
+SPEC 실행 중 적용된 변경사항 (코드베이스에 유지):
+
+| 파일 | 변경 내용 | 상태 |
+|------|----------|------|
+| `backend/app/services/separation_service.py` | `split=True` 옵션 추가 (OOM 완화) | **유지** - 로컬 환경에서도 메모리 효율 개선 |
+| `backend/app/config.py` | 환경변수 로드 확인 로깅 추가 | **유지** - 디버깅 유용 |
+| `backend/app/services/youtube_service.py` | 쿠키 인증 로직 (기존 구현) | **유지** - 코드 변경 없음 |
+
+### Phase 3 미구현 항목
+
+포기로 인해 구현하지 않은 항목:
+
+- REQ-3.2: 오디오 길이 제한 (300초 경고)
+- REQ-3.3: OOM 방지 강화 에러 처리
+- Railway 환경변수 설정 (YOUTUBE_COOKIES, CORS_ORIGINS)
+
+### 향후 고려사항
+
+다른 배포 플랫폼으로 전환 시 참고할 사항:
+
+- Demucs 실행을 위해 최소 **2GB RAM** 권장
+- GPU 지원 환경에서 처리 속도 10x 이상 개선 가능
+- YouTube 다운로드는 별도 서비스(microservice) 분리 고려
