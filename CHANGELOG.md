@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2026-02-17
+
+### Reverted
+
+- **Railway 배포 관련 변경사항 전면 롤백**: YouTube 정책으로 Railway 배포 포기
+  - `backend/Dockerfile`: Railway PORT/healthcheck 변경 제거, 원본 복원
+  - `backend/Dockerfile.optimized`: Railway 전용 파일 삭제
+  - `backend/railway.json`: Railway 배포 설정 파일 삭제
+  - `backend/app/config.py`: CORS 프로덕션 URL 제거, YouTube cookies 필드 제거, `list[str]` 타입 복원
+  - `backend/app/main.py`: `cors_origins_list` → `cors_origins` 직접 사용, CORS 디버그 로깅 제거
+  - `backend/app/services/youtube_service.py`: cookies 인증 기능 제거
+  - `backend/.env.example`: YouTube cookies 환경변수 제거
+
+### Kept
+
+- `separation_service.py` torchaudio 호환성 수정 및 `split=True` 메모리 최적화 유지 (로컬 검증 완료)
+
+### Technical Details
+
+- YouTube 봇 탐지 문제로 Railway 서버 환경 배포 포기 결정
+- 백엔드는 로컬 개발 환경 기준으로 운영
+
+## [0.3.3] - 2026-02-17
+
+### Verified
+
+- **SPEC-BACKEND-001 Phase 1-2 검증 완료**: 실제 E2E 테스트 통과
+  - Demucs htdemucs 모델 stem 분리: 5초/60초 오디오 모두 성공
+  - split=True 메모리 최적화 확인: 60초 오디오 피크 메모리 57.7MB
+  - API 통합 테스트 전체 통과 (업로드, 진행률, 개별 스템 다운로드, ZIP 다운로드)
+  - 단위 테스트 101개 전체 통과
+  - YouTube 쿠키 인증 코드 구현 확인 (프로덕션 봇 탐지는 향후 PO Token + Deno으로 해결 예정)
+
+### Investigation Notes
+
+- YouTube 봇 탐지 (2026년 현황): 쿠키만으로는 서버 환경에서 3-7일 유효, PO Token + Deno JS 런타임이 권장 방안
+- 로컬 환경에서는 yt-dlp 쿠키 없이도 메타데이터 추출 성공 (봇 탐지는 Railway IP 대역 특유의 문제)
+- 대안 기술 조사 완료: Invidious(사망), Cobalt(고장), OAuth(폐지), PO Token(유망)
+
 ## [0.3.2] - 2026-02-17
 
 ### Added
