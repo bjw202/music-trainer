@@ -1,6 +1,45 @@
-import { expect, afterEach } from 'vitest'
+import { expect, afterEach, vi } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import * as matchers from '@testing-library/jest-dom/matchers'
+
+// Mock Worker for jsdom environment
+class MockWorker {
+  onmessage: ((e: MessageEvent) => void) | null = null
+  private timerId: ReturnType<typeof setInterval> | null = null
+
+  constructor(_url: string | URL) {
+    // No-op in test environment
+  }
+
+  postMessage(message: string): void {
+    if (message === 'start') {
+      this.timerId = setInterval(() => {
+        if (this.onmessage) {
+          this.onmessage({ data: 'tick' } as MessageEvent)
+        }
+      }, 25)
+    } else if (message === 'stop') {
+      if (this.timerId) {
+        clearInterval(this.timerId)
+        this.timerId = null
+      }
+    }
+  }
+
+  terminate(): void {
+    if (this.timerId) {
+      clearInterval(this.timerId)
+      this.timerId = null
+    }
+  }
+}
+
+// @ts-expect-error - Worker is not defined in jsdom
+globalThis.Worker = MockWorker
+
+// Mock URL.createObjectURL
+URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+URL.revokeObjectURL = vi.fn()
 
 // Extend Vitest's expect with jest-dom matchers
 expect.extend(matchers)

@@ -7,3 +7,4 @@
 export { AudioEngine, type AudioEngineEvents } from './AudioEngine'
 export { ABLoopManager } from './ABLoopManager'
 export { WaveformRenderer, type WaveformRendererEvents } from './WaveformRenderer'
+export { MetronomeEngine, type MetronomeConfig } from './MetronomeEngine'

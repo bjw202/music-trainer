@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react'
-import { UploadCloud, Gauge, Repeat, Scissors, SlidersHorizontal, FolderOpen } from 'lucide-react'
+import { UploadCloud, Gauge, Repeat, Scissors, SlidersHorizontal, FolderOpen, Music } from 'lucide-react'
 import { AppLayout } from '../Layout/AppLayout'
 import { Header } from '../Layout/Header'
 import { DragDropZone } from '../FileLoader/DragDropZone'
@@ -18,6 +18,7 @@ import { YouTubeSection } from '../YouTube'
 import { SeparationButton } from '../StemMixer/SeparationButton'
 import { SeparationProgress } from '../StemMixer/SeparationProgress'
 import { StemMixerPanel } from '../StemMixer/StemMixerPanel'
+import { MetronomePanel } from '../Metronome'
 import { useAudioEngine } from '../../hooks/useAudioEngine'
 import { usePlayback } from '../../hooks/usePlayback'
 import { useSpeedPitch } from '../../hooks/useSpeedPitch'
@@ -392,6 +393,17 @@ export function Player() {
               </h3>
             </div>
             <SpeedPitchPanel disabled={!canPlay} />
+          </div>
+
+          {/* Metronome / BPM */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 px-2">
+              <Music className="w-4 h-4 text-[#FF6B35]" aria-hidden="true" />
+              <h3 className="text-sm font-heading font-semibold tracking-wider uppercase text-[#F5F5F5]">
+                Metronome
+              </h3>
+            </div>
+            <MetronomePanel disabled={!canPlay} file={file} />
           </div>
 
           {/* Stem Mixer Panel - Stem 모드일 때만 표시 */}

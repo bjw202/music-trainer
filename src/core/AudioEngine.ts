@@ -439,6 +439,14 @@ export class AudioEngine {
   }
 
   /**
+   * AudioContext 반환 (메트로놈 등 외부 모듈에서 사용)
+   * @returns AudioContext 인스턴스 또는 null
+   */
+  getContext(): AudioContext | null {
+    return this.context
+  }
+
+  /**
    * 리소스 정리
    * 메모리 누수를 방지하기 위해 모든 리소스를 해제합니다.
    */

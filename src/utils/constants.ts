@@ -51,3 +51,17 @@ export const SPEED_PITCH = {
   DEFAULT_SPEED: 1.0,
   DEFAULT_PITCH: 0,
 } as const
+
+/**
+ * 메트로놈 상수
+ */
+export const METRONOME = {
+  DEFAULT_VOLUME: 50,
+  MIN_VOLUME: 0,
+  MAX_VOLUME: 100,
+  CLICK_FREQUENCY_DOWNBEAT: 880,
+  CLICK_FREQUENCY_UPBEAT: 440,
+  CLICK_DURATION: 0.03,
+  SCHEDULE_AHEAD_TIME: 0.1, // 100ms
+  LOOKAHEAD_MS: 25,
+} as const
