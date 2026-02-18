@@ -87,6 +87,7 @@ export function Player() {
   const {
     startSeparation,
     retrySeparation,
+    getAudioContext,
   } = useSeparation()
 
   // 새 파일 로드 시 stem 상태 완전 초기화 래퍼
@@ -181,11 +182,19 @@ export function Player() {
         }
 
         // StemMixer 초기화 및 Stem 데이터 로드
-        await initMixer()
+        // 디코딩에 사용된 AudioContext를 StemMixer에 전달하여 sampleRate 불일치 방지
+        const audioContext = getAudioContext()
+        const initializedMixer = await initMixer(audioContext)
         await loadStems(stems as Record<StemName, AudioBuffer>)
 
+        // speed/pitch 사전 동기화: useEffect 대기 없이 즉시 적용 (레이스 컨디션 방지)
+        // useSpeedPitch(activeEngine)의 useEffect는 리렌더링 후 실행되므로
+        // setIsStemPlayable(true) 이전에 직접 적용하여 초기 재생 시 pitch shift 방지
+        const { speed, pitch } = useControlStore.getState()
+        initializedMixer.setSpeed(speed)
+        initializedMixer.setPitch(pitch)
+
         // 준비 완료 표시
-        // speed/pitch는 useSpeedPitch(activeEngine) 이펙트가 엔진 전환 시 자동 동기화
         // volume은 아래 볼륨 동기화 이펙트가 mixer/isMixerReady 변경 시 자동 동기화
         setIsStemPlayable(true)
       } catch (err) {
@@ -196,7 +205,7 @@ export function Player() {
     }
 
     setupMixer()
-  }, [isStemMode, separationStatus, stems, engine, initMixer, loadStems, isStemPlayable, mixer])
+  }, [isStemMode, separationStatus, stems, engine, initMixer, loadStems, isStemPlayable, mixer, getAudioContext])
 
   // Stem 모드 종료 시: StemMixer 일시정지, AudioEngine 위치 동기화
   useEffect(() => {

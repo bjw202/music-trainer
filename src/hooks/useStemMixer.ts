@@ -11,7 +11,7 @@ import type { StemName } from '../stores/stemStore'
 export interface UseStemMixerReturn {
   mixer: StemMixer | null
   isReady: boolean
-  initialize: () => Promise<void>
+  initialize: (audioContext?: AudioContext) => Promise<StemMixer>
   loadStems: (stems: Record<StemName, AudioBuffer>) => Promise<void>
   dispose: () => Promise<void>
 }
@@ -52,10 +52,12 @@ export function useStemMixer(): UseStemMixerReturn {
 
   /**
    * StemMixer 초기화
+   * @param audioContext - 외부에서 주입된 AudioContext (없으면 StemMixer 내부에서 새로 생성)
+   * @returns 초기화된 StemMixer 인스턴스 (speed/pitch 즉시 적용을 위해 반환)
    */
-  const initialize = useCallback(async (): Promise<void> => {
+  const initialize = useCallback(async (audioContext?: AudioContext): Promise<StemMixer> => {
     if (mixerRef.current) {
-      return
+      return mixerRef.current
     }
 
     try {
@@ -85,9 +87,10 @@ export function useStemMixer(): UseStemMixerReturn {
         },
       })
 
-      await mixer.initialize()
+      await mixer.initialize(audioContext)
       mixerRef.current = mixer
       setIsReady(true)
+      return mixer
     } catch (error) {
       console.error('[useStemMixer] Failed to initialize:', error)
       throw error

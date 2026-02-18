@@ -25,6 +25,9 @@ export interface UseSeparationReturn {
   // 유틸리티
   isSeparating: boolean
   canSeparate: boolean
+
+  // 디코딩에 사용된 AudioContext 반환 (StemMixer와 동일한 컨텍스트 공유용)
+  getAudioContext: () => AudioContext
 }
 
 /**
@@ -237,6 +240,7 @@ export function useSeparation(): UseSeparationReturn {
     retrySeparation,
     isSeparating,
     canSeparate,
+    getAudioContext,
   }
 }
 

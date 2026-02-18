@@ -133,14 +133,16 @@ export class StemMixer {
 
   /**
    * AudioContext 초기화
+   * @param audioContext - 외부에서 주입된 AudioContext (없으면 새로 생성)
    */
-  async initialize(): Promise<void> {
+  async initialize(audioContext?: AudioContext): Promise<void> {
     if (this.context) {
       return
     }
 
     try {
-      this.context = new AudioContext()
+      this.context = audioContext ?? new AudioContext()
+      console.log('[StemMixer] AudioContext sampleRate:', this.context.sampleRate)
 
       // 오디오 그래프 노드 생성
       this.masterGainNode = this.context.createGain()
@@ -177,6 +179,13 @@ export class StemMixer {
 
     // Stem 버퍼 저장
     this.stemBuffers = { ...stems }
+
+    // sampleRate 진단 로그
+    console.log('[StemMixer] Stem vocals sampleRate:', stems.vocals.sampleRate)
+    console.log('[StemMixer] AudioContext sampleRate:', this.context!.sampleRate)
+    if (stems.vocals.sampleRate !== this.context!.sampleRate) {
+      console.warn('[StemMixer] sampleRate mismatch detected! Pitch may shift during speed changes.')
+    }
 
     // SoundTouch 파이프라인 구성
     this.setupSoundTouchPipeline()
@@ -676,7 +685,11 @@ class MixerAudioSource {
    * 샘플 속도 반환 (첫 번째 stem의 샘플 레이트 사용)
    */
   get sampleRate(): number {
-    return this.stemSources.vocals?.buffer?.sampleRate ?? 44100
+    const sr = this.stemSources.vocals?.buffer?.sampleRate
+    if (!sr) {
+      throw new Error('[MixerAudioSource] vocals buffer not loaded - sampleRate unavailable')
+    }
+    return sr
   }
 
   /**
