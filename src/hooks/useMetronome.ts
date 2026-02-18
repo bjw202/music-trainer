@@ -3,6 +3,7 @@
  *
  * MetronomeEngine의 생명주기를 관리하고 bpmStore와 연동합니다.
  * AudioEngine의 직접 시간 리스너를 사용하여 React 상태를 거치지 않고 동기화합니다.
+ * 음원 재생 상태와 메트로놈을 연동하여, 음원 정지 시 메트로놈도 정지합니다.
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
@@ -24,6 +25,10 @@ export interface UseMetronomeReturn {
  * AudioEngine의 addTimeListener를 통해 React 상태를 거치지 않고
  * 직접 시간 동기화를 수행합니다 (~16ms 지연, React 경로 대비 ~120ms 절약).
  *
+ * 음원 재생 상태(play/pause/stop)와 메트로놈이 연동됩니다:
+ * - 메트로놈 ON + 음원 재생 중 → 클릭 재생
+ * - 메트로놈 ON + 음원 정지 → 클릭 정지 (enabled 상태는 유지)
+ *
  * @param audioEngine - AudioEngine 인스턴스
  * @returns 메트로놈 상태
  */
@@ -34,8 +39,12 @@ export function useMetronome(
   const listenerRef = useRef<((time: number, speed: number) => void) | null>(null)
   const seekListenerRef = useRef<((time: number, speed: number) => void) | null>(null)
   const speedListenerRef = useRef<((speed: number, sourceTime: number) => void) | null>(null)
+  const playStateListenerRef = useRef<((isPlaying: boolean) => void) | null>(null)
   const [isReady, setIsReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // 음원 재생 상태 추적
+  const [audioIsPlaying, setAudioIsPlaying] = useState(false)
 
   // bpmStore 상태 구독
   const beats = useBpmStore((state) => state.beats)
@@ -69,6 +78,10 @@ export function useMetronome(
       if (speedListenerRef.current) {
         audioEngine.removeSpeedChangeListener(speedListenerRef.current)
         speedListenerRef.current = null
+      }
+      if (playStateListenerRef.current) {
+        audioEngine.removePlayStateListener(playStateListenerRef.current)
+        playStateListenerRef.current = null
       }
 
       // 기존 엔진 정리
@@ -104,6 +117,13 @@ export function useMetronome(
       speedListenerRef.current = speedListener
       audioEngine.addSpeedChangeListener(speedListener)
 
+      // 재생 상태 변경 리스너 등록 (음원 play/pause/stop 시 메트로놈 연동)
+      const playStateListener = (isPlaying: boolean) => {
+        setAudioIsPlaying(isPlaying)
+      }
+      playStateListenerRef.current = playStateListener
+      audioEngine.addPlayStateListener(playStateListener)
+
       setIsReady(true)
       setError(null)
     } catch (err) {
@@ -136,6 +156,10 @@ export function useMetronome(
         audioEngine.removeSpeedChangeListener(speedListenerRef.current)
         speedListenerRef.current = null
       }
+      if (playStateListenerRef.current && audioEngine) {
+        audioEngine.removePlayStateListener(playStateListenerRef.current)
+        playStateListenerRef.current = null
+      }
       // 엔진 정리
       if (metronomeRef.current) {
         metronomeRef.current.dispose()
@@ -163,18 +187,19 @@ export function useMetronome(
     metronomeRef.current.setVolume(metronomeVolume)
   }, [metronomeVolume])
 
-  // 메트로놈 활성화/비활성화
+  // 메트로놈 활성화/비활성화 (음원 재생 상태와 연동)
+  // 조건: metronomeEnabled && audioIsPlaying 일 때만 재생
   useEffect(() => {
     if (!metronomeRef.current) {
       return
     }
 
-    if (metronomeEnabled) {
+    if (metronomeEnabled && audioIsPlaying) {
       metronomeRef.current.start()
     } else {
       metronomeRef.current.stop()
     }
-  }, [metronomeEnabled])
+  }, [metronomeEnabled, audioIsPlaying])
 
   return {
     isReady,

@@ -73,9 +73,9 @@
 
 **수용 기준:**
 - AC-3.1: Web Worker Lookahead Scheduler (25ms setTimeout 간격, 100ms 스케줄 어헤드 윈도우)
-- AC-3.2: OscillatorNode로 클릭 생성 (다운비트 880Hz, 업비트 440Hz, 30ms 지속)
+- AC-3.2: OscillatorNode로 클릭 생성 (모든 비트 동일 440Hz, 30ms 지속) - madmom이 마디 시작을 정확히 감지하지 못하므로 강박/약박 구분 제거
 - AC-3.3: 메트로놈 오디오: OscillatorNode -> GainNode(metronome) -> Destination (SoundTouch 우회)
-- AC-3.4: `isPlaying === true`일 때만 클릭 재생
+- AC-3.4: 음원 재생 중일 때만 클릭 재생 (playStateListeners 연동으로 transport 상태 추적)
 - AC-3.5: 메트로놈 비활성화 시 모든 스케줄된 오실레이터 취소
 
 ### US-4: 속도 변경 자동 조정
@@ -155,7 +155,7 @@
   ScriptProcessorNode -> GainNode(master) -> AnalyserNode -> context.destination
 
 메트로놈 파이프라인 (별도 경로):
-  OscillatorNode(880/440Hz, 30ms) -> GainNode(metronome) -> context.destination
+  OscillatorNode(440Hz, 30ms) -> GainNode(metronome) -> context.destination
 ```
 
 **SoundTouch 우회 이유:**
@@ -240,9 +240,9 @@ class MetronomeEngine {
 
 | 이벤트 | MetronomeEngine 동작 |
 |--------|---------------------|
-| Play | `start()` - Worker 시작, 스케줄링 시작 |
-| Pause | `stop()` - Worker 중단, nextBeatIndex 보존 |
-| Stop | `stop()` - Worker 중단 |
+| Play | `start()` - Worker 시작, 스케줄링 시작. playStateListeners(true) 호출 -> 메트로놈 활성화 |
+| Pause | `stop()` - Worker 중단, nextBeatIndex 보존. playStateListeners(false) 호출 -> 메트로놈 비활성화 |
+| Stop | `stop()` - Worker 중단. playStateListeners(false) 호출 -> 메트로놈 비활성화 |
 | Seek | `syncToPlaybackTime(newTime, speed)` - 이진 검색으로 다음 비트 찾기, scheduledBeats 초기화 |
 | Speed Change | 자동 반영 (다음 `syncToPlaybackTime` 호출 시 새 speed 사용) |
 | A-B Loop Reset | `syncToPlaybackTime(loopA, speed)` - 루프 시작 비트로 리셋 |
@@ -581,6 +581,41 @@ MetronomePanel은 Pencil MCP로 디자인:
 - Backend: pytest 단위 테스트 (bpm_service.py, bpm.py route)
 - Frontend: Vitest 단위 테스트 (MetronomeEngine, bpmStore, API 클라이언트)
 - E2E: Playwright 시나리오 (BPM 분석, 메트로놈 토글)
+
+### 후속 최적화 (2026-02-18)
+
+| 커밋 | 날짜 | 설명 |
+|------|------|------|
+| e837ba5 | 2026-02-18 | feat(audio): 메트로놈 오디오 파이프라인 최적화 - React 지연 제거 |
+| dce2f2d | 2026-02-18 | docs: SPEC-BPM-001 완료 문서 동기화 |
+
+**One-Time Anchor 패턴:**
+- 기존: 매 ~93ms ScriptProcessorNode 버퍼마다 MetronomeEngine 앵커 동기화
+- 개선: play/seek 시 1회만 앵커 동기화 (`needsAnchorSync` 플래그)
+- AudioEngine의 `onaudioprocess`에서 `needsAnchorSync === true`일 때만 timeListeners 호출
+- rAF 업데이트 루프에서 timeListeners 호출 제거 (~16ms 지터 원인 제거)
+
+**재생 상태 연동 (playStateListeners):**
+- AudioEngine에 `playStateListeners` Set 및 `addPlayStateListener()`/`removePlayStateListener()` 추가
+- `play()` -> playStateListeners(true), `pause()`/`stop()` -> playStateListeners(false)
+- useMetronome 훅에서 `audioIsPlaying` 상태 추적
+- 메트로놈 활성화 조건 변경: `metronomeEnabled` -> `metronomeEnabled && audioIsPlaying`
+- 효과: 음원 정지 시 메트로놈 자동 정지, 재생 재개 시 자동 활성화
+
+**비트 간격 스무딩 (백엔드):**
+- `bpm_service.py`에 `_smooth_beats()` 함수 추가
+- 이동 중앙값 필터 (window=8) 적용으로 인트로 구간 madmom 바운싱 제거
+- `_detect_with_madmom()` 비트 감지 후, BPM 계산 전에 적용
+
+**동일 클릭음 (강박/약박 구분 제거):**
+- MetronomeEngine에서 `nextBeatIndex % 4 === 0` 분기 로직 제거
+- 모든 비트에 동일한 `clickFrequencyUpbeat` (440Hz) 사용
+- 근거: madmom이 마디 시작(downbeat)을 신뢰성 있게 감지하지 못하므로 강박/약박 구분이 오히려 오해를 유발
+
+**madmom 0.16.1 호환성 패치:**
+- Python 3.13 + NumPy 2.x 환경에서 madmom 임포트 오류 해결
+- `collections.MutableSequence` -> `collections.abc.MutableSequence` 패치
+- `np.float` -> `float` 패치
 
 ---
 

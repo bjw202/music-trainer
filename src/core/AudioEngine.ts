@@ -78,6 +78,12 @@ export class AudioEngine {
   // 재생 종료 중복 호출 방지
   private endedFired: boolean = false
 
+  // One-Time Anchor 동기화 플래그
+  // play/seek 시 true로 설정, 다음 onaudioprocess에서 timeListeners 1회 호출 후 false
+  // 매 버퍼마다 앵커를 리셋하면 onaudioprocess 타이밍 지터(±5ms)가
+  // MetronomeEngine 앵커에 전파되어 클릭이 바운싱합니다.
+  private needsAnchorSync: boolean = false
+
   // 이벤트 핸들러
   private readonly events: AudioEngineEvents
 
@@ -87,6 +93,8 @@ export class AudioEngine {
   private seekListeners: Set<(time: number, speed: number) => void> = new Set()
   // 속도 변경 리스너 (setSpeed 호출 시 즉시 알림)
   private speedChangeListeners: Set<(speed: number, sourceTime: number) => void> = new Set()
+  // 재생 상태 변경 리스너 (play/pause/stop 시 호출)
+  private playStateListeners: Set<(isPlaying: boolean) => void> = new Set()
 
   constructor(events: AudioEngineEvents = {}) {
     this.events = events
@@ -135,6 +143,20 @@ export class AudioEngine {
    */
   removeSpeedChangeListener(listener: (speed: number, sourceTime: number) => void): void {
     this.speedChangeListeners.delete(listener)
+  }
+
+  /**
+   * 재생 상태 변경 리스너 등록 (play/pause/stop 시 호출)
+   */
+  addPlayStateListener(listener: (isPlaying: boolean) => void): void {
+    this.playStateListeners.add(listener)
+  }
+
+  /**
+   * 재생 상태 변경 리스너 해제
+   */
+  removePlayStateListener(listener: (isPlaying: boolean) => void): void {
+    this.playStateListeners.delete(listener)
   }
 
   /**
@@ -256,6 +278,24 @@ export class AudioEngine {
           right[i] = 0
         }
       }
+
+      // One-Time Anchor: play/seek 후 1회만 timeListeners 호출
+      // 매 버퍼(~93ms)마다 앵커를 리셋하면 onaudioprocess 타이밍 지터(±5ms)가
+      // MetronomeEngine 앵커에 전파되어 클릭이 바운싱합니다.
+      // 1회 동기화 후 MetronomeEngine은 audioContext.currentTime 기반 보간으로
+      // 하드웨어 클럭 정밀도의 일정한 비트 스케줄링을 수행합니다.
+      if (this.needsAnchorSync && this.buffer && this.simpleFilter) {
+        this.needsAnchorSync = false
+        const sr = this.buffer.sampleRate
+        const sourceTime = this.simpleFilter.sourcePosition / sr
+        const playbackTime = Math.max(
+          0,
+          sourceTime - (SCRIPT_BUFFER_SIZE * this.currentSpeed) / sr
+        )
+        for (const listener of this.timeListeners) {
+          listener(playbackTime, this.currentSpeed)
+        }
+      }
     }
 
     // 그래프 연결: ScriptProcessor -> Gain -> Analyser -> Destination
@@ -318,6 +358,20 @@ export class AudioEngine {
 
     this.endedFired = false
     this.isPlaying = true
+    this.needsAnchorSync = true // 다음 onaudioprocess에서 앵커 1회 동기화
+
+    // 음원 재생 재개 시 메트로놈 재동기화
+    // seekListeners → MetronomeEngine.seekTo() → scheduledBeats 초기화 + 앵커 리셋
+    const currentTime = this.getCurrentTime()
+    for (const listener of this.seekListeners) {
+      listener(currentTime, this.currentSpeed)
+    }
+
+    // 재생 상태 변경 알림 (메트로놈 연동)
+    for (const listener of this.playStateListeners) {
+      listener(true)
+    }
+
     this.startTimeUpdates()
   }
 
@@ -333,6 +387,11 @@ export class AudioEngine {
     this.pauseTime = this.getCurrentTime()
     this.isPlaying = false
     this.stopTimeUpdates()
+
+    // 재생 상태 변경 알림 (메트로놈 연동)
+    for (const listener of this.playStateListeners) {
+      listener(false)
+    }
   }
 
   /**
@@ -354,6 +413,11 @@ export class AudioEngine {
     }
 
     this.events.onTimeUpdate?.(0)
+
+    // 재생 상태 변경 알림 (메트로놈 연동)
+    for (const listener of this.playStateListeners) {
+      listener(false)
+    }
   }
 
   /**
@@ -377,6 +441,12 @@ export class AudioEngine {
     // Seek 리스너에 비연속적 위치 변경 알림
     for (const listener of this.seekListeners) {
       listener(clampedTime, this.currentSpeed)
+    }
+
+    // 재생 중 seek 시 앵커 재동기화 (seekListeners로 즉시 리셋 후,
+    // 다음 onaudioprocess에서 정밀 앵커로 덮어씀)
+    if (this.isPlaying) {
+      this.needsAnchorSync = true
     }
 
     if (!this.isPlaying) {
@@ -584,14 +654,10 @@ export class AudioEngine {
     const delta = now - this.lastUpdateTime
 
     // 60fps 목표 (약 16ms마다 업데이트)
+    // UI 타임라인만 업데이트 (timeListeners는 onaudioprocess에서 호출)
     if (delta >= 16) {
       const currentTime = this.getCurrentTime()
       this.events.onTimeUpdate?.(currentTime)
-
-      // 직접 시간 리스너에 시간과 속도를 함께 전달 (React 상태 우회)
-      for (const listener of this.timeListeners) {
-        listener(currentTime, this.currentSpeed)
-      }
 
       this.lastUpdateTime = now
     }

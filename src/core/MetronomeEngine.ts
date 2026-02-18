@@ -259,11 +259,8 @@ export class MetronomeEngine {
 
       // 중복 스케줄링 방지
       if (!this.scheduledBeats.has(this.nextBeatIndex)) {
-        // 다운비트(4박자마다) vs 업비트 구분
-        const isDownbeat = this.nextBeatIndex % 4 === 0
-        const frequency = isDownbeat ? this.clickFrequencyDownbeat : this.clickFrequencyUpbeat
-
-        this._scheduleClick(scheduleTime, frequency, this.clickDuration)
+        // 모든 비트에 동일한 클릭음 사용 (madmom이 마디 시작을 정확히 감지하지 못함)
+        this._scheduleClick(scheduleTime, this.clickFrequencyUpbeat, this.clickDuration)
         this.scheduledBeats.add(this.nextBeatIndex)
       }
 

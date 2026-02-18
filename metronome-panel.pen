@@ -1,0 +1,983 @@
+{
+  "version": "2.8",
+  "children": [
+    {
+      "type": "frame",
+      "id": "lcTlC",
+      "x": 0,
+      "y": 0,
+      "name": "MetronomePanel - Normal State",
+      "width": 400,
+      "fill": "#1A1A1A",
+      "cornerRadius": 12,
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "text",
+          "id": "1UMFC",
+          "name": "Panel Label Normal",
+          "fill": "#6B7280",
+          "content": "Normal State",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "9NPCD",
+          "name": "Panel Container",
+          "width": "fill_container",
+          "fill": "#141414",
+          "cornerRadius": 12,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#1E1E1E"
+          },
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "23ggi",
+              "name": "Header Row",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "m1wo0",
+                  "name": "BPM Section",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Ydpg5",
+                      "name": "BPM Number",
+                      "fill": "#F5F5F5",
+                      "content": "120",
+                      "textAlign": "center",
+                      "fontFamily": "Roboto Mono",
+                      "fontSize": 40,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "PEPs4",
+                      "name": "BPM Labels",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "mDVOr",
+                          "name": "BPM Label",
+                          "fill": "#9CA3AF",
+                          "content": "BPM",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "kG19U",
+                          "name": "Confidence Badge",
+                          "fill": "#22C55E26",
+                          "cornerRadius": 4,
+                          "padding": [
+                            2,
+                            6
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "fNkl0",
+                              "name": "Confidence Text",
+                              "fill": "#22C55E",
+                              "content": "High",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "U3Hym",
+                  "name": "Analyze Button",
+                  "fill": "#FF6B35",
+                  "cornerRadius": 8,
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "YhFeK",
+                      "name": "Analyze Button Text",
+                      "fill": "#FFFFFF",
+                      "content": "BPM 분석",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "lv2LH",
+              "name": "Metronome Controls Row",
+              "width": "fill_container",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "HQNXV",
+                  "name": "Metronome Toggle ON",
+                  "fill": "#FF6B35",
+                  "cornerRadius": 8,
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "xwOTV",
+                      "name": "musicIcon",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "music",
+                      "iconFontFamily": "lucide",
+                      "fill": "#FFFFFF"
+                    },
+                    {
+                      "type": "text",
+                      "id": "dZ7vt",
+                      "name": "Toggle Label",
+                      "fill": "#FFFFFF",
+                      "content": "ON",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "2HOBp",
+                  "name": "Volume Section",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "JopGe",
+                      "name": "Volume Label",
+                      "fill": "#6B7280",
+                      "content": "볼륨",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "4XCdy",
+                      "name": "Slider Track",
+                      "width": "fill_container",
+                      "height": 4,
+                      "fill": "#2A2A2A",
+                      "cornerRadius": 2,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "kLA85",
+                          "name": "Slider Fill",
+                          "width": 120,
+                          "height": "fill_container",
+                          "fill": "#FF6B35",
+                          "cornerRadius": 2
+                        },
+                        {
+                          "type": "frame",
+                          "id": "RisTS",
+                          "name": "Slider Thumb",
+                          "width": 12,
+                          "height": 12,
+                          "fill": "#FF6B35",
+                          "cornerRadius": 6
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "SlAew",
+                      "name": "Volume Value",
+                      "fill": "#9CA3AF",
+                      "content": "70%",
+                      "textAlign": "right",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "yp8rf",
+      "x": 440,
+      "y": 0,
+      "name": "MetronomePanel - Analyzing State",
+      "width": 400,
+      "fill": "#1A1A1A",
+      "cornerRadius": 12,
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "text",
+          "id": "eWb5i",
+          "name": "Panel Label Analyzing",
+          "fill": "#6B7280",
+          "content": "Analyzing State",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "8HS4W",
+          "name": "Panel Container",
+          "width": "fill_container",
+          "fill": "#141414",
+          "cornerRadius": 12,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#1E1E1E"
+          },
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "gXZTt",
+              "name": "Header Row",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "iOQtg",
+                  "name": "BPM Section",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CTH6Y",
+                      "name": "BPM Dash",
+                      "fill": "#F5F5F5",
+                      "content": "—",
+                      "textAlign": "center",
+                      "fontFamily": "Roboto Mono",
+                      "fontSize": 40,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "9CAj8",
+                      "name": "BPM Labels",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "BqAld",
+                          "name": "BPM Label",
+                          "fill": "#9CA3AF",
+                          "content": "BPM",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "DjxLo",
+                          "name": "Analyzing Badge",
+                          "fill": "#FF6B3526",
+                          "cornerRadius": 4,
+                          "gap": 4,
+                          "padding": [
+                            2,
+                            6
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "watJZ",
+                              "name": "spinnerIcon",
+                              "width": 10,
+                              "height": 10,
+                              "iconFontName": "refresh-cw",
+                              "iconFontFamily": "lucide",
+                              "fill": "#FF6B35"
+                            },
+                            {
+                              "type": "text",
+                              "id": "r7Qht",
+                              "name": "Analyzing Text",
+                              "fill": "#FF6B35",
+                              "content": "분석 중",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FkIbE",
+                  "name": "Analyzing Button",
+                  "fill": "#2A2A2A",
+                  "cornerRadius": 8,
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "FEebN",
+                      "name": "loadIcon2",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "refresh-cw",
+                      "iconFontFamily": "lucide",
+                      "fill": "#6B7280"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CS29S",
+                      "name": "Button Text",
+                      "fill": "#6B7280",
+                      "content": "분석 중",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "nGZ5n",
+              "name": "Metronome Controls Row",
+              "width": "fill_container",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "A6shD",
+                  "name": "Metronome Toggle OFF",
+                  "fill": "#2A2A2A",
+                  "cornerRadius": 8,
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "9SgHO",
+                      "name": "musicIcon2",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "music",
+                      "iconFontFamily": "lucide",
+                      "fill": "#6B7280"
+                    },
+                    {
+                      "type": "text",
+                      "id": "CSzJx",
+                      "name": "Toggle Label",
+                      "fill": "#F5F5F5",
+                      "content": "OFF",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "TEaxl",
+                  "name": "Volume Section",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "nyE3h",
+                      "name": "Volume Label",
+                      "fill": "#6B7280",
+                      "content": "볼륨",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "xL2Se",
+                      "name": "Slider Track",
+                      "width": "fill_container",
+                      "height": 4,
+                      "fill": "#2A2A2A",
+                      "cornerRadius": 2,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "JQFQK",
+                          "name": "Slider Fill Disabled",
+                          "width": 0,
+                          "height": "fill_container",
+                          "fill": "#4B5563",
+                          "cornerRadius": 2
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "d32GY",
+                      "name": "Volume Value",
+                      "fill": "#6B7280",
+                      "content": "70%",
+                      "textAlign": "right",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "gVbXB",
+      "x": 880,
+      "y": 0,
+      "name": "MetronomePanel - Error State",
+      "width": 400,
+      "fill": "#1A1A1A",
+      "cornerRadius": 12,
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "text",
+          "id": "Euuye",
+          "name": "Panel Label Error",
+          "fill": "#6B7280",
+          "content": "Error State",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "2Z1qA",
+          "name": "Panel Container",
+          "width": "fill_container",
+          "fill": "#141414",
+          "cornerRadius": 12,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#1E1E1E"
+          },
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "gxX3I",
+              "name": "Header Row",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "lEtsU",
+                  "name": "BPM Section",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "0iqmp",
+                      "name": "BPM Dash",
+                      "fill": "#F5F5F5",
+                      "content": "—",
+                      "textAlign": "center",
+                      "fontFamily": "Roboto Mono",
+                      "fontSize": 40,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "kk3Ku",
+                      "name": "BPM Labels",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "wYlaO",
+                          "name": "BPM Label",
+                          "fill": "#9CA3AF",
+                          "content": "BPM",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "yQY0o",
+                  "name": "Retry Button",
+                  "fill": "#FF6B35",
+                  "cornerRadius": 8,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "iYLY2",
+                      "name": "Retry Text",
+                      "fill": "#FFFFFF",
+                      "content": "다시 시도",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "1v0H3",
+              "name": "Error Box",
+              "width": "fill_container",
+              "fill": "#EF444419",
+              "cornerRadius": 8,
+              "gap": 8,
+              "padding": [
+                8,
+                12
+              ],
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "eAwdd",
+                  "name": "errorIcon",
+                  "width": 16,
+                  "height": 16,
+                  "iconFontName": "triangle-alert",
+                  "iconFontFamily": "lucide",
+                  "fill": "#EF4444"
+                },
+                {
+                  "type": "text",
+                  "id": "dihRU",
+                  "name": "Error Message",
+                  "fill": "#EF4444",
+                  "content": "BPM 분석에 실패했습니다. 오디오 파일을 확인해 주세요.",
+                  "fontFamily": "Inter",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "dBJNS",
+              "name": "Metronome Controls Row",
+              "width": "fill_container",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "0pJf9",
+                  "name": "Metronome Toggle Disabled",
+                  "fill": "#2A2A2A",
+                  "cornerRadius": 8,
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "S79FM",
+                      "name": "musicIconD",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "music",
+                      "iconFontFamily": "lucide",
+                      "fill": "#4B5563"
+                    },
+                    {
+                      "type": "text",
+                      "id": "2SYOC",
+                      "name": "Toggle Label",
+                      "fill": "#4B5563",
+                      "content": "OFF",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "yz4Zb",
+                  "name": "Volume Section",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Yn3RU",
+                      "name": "Volume Label",
+                      "fill": "#4B5563",
+                      "content": "볼륨",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "5LRg1",
+                      "name": "Slider Track",
+                      "width": "fill_container",
+                      "height": 4,
+                      "fill": "#1E1E1E",
+                      "cornerRadius": 2,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "raJKC",
+                          "name": "Slider Fill",
+                          "width": 0,
+                          "height": "fill_container",
+                          "fill": "#4B5563",
+                          "cornerRadius": 2
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "mgFdU",
+                      "name": "Volume Value",
+                      "fill": "#4B5563",
+                      "content": "70%",
+                      "textAlign": "right",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "g1NZP",
+      "x": 0,
+      "y": 160,
+      "name": "MetronomePanel - No File State",
+      "width": 400,
+      "fill": "#1A1A1A",
+      "cornerRadius": 12,
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "text",
+          "id": "uLxHA",
+          "name": "Panel Label",
+          "fill": "#6B7280",
+          "content": "No File (Disabled) State",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "e4DGW",
+          "name": "Panel Container",
+          "width": "fill_container",
+          "fill": "#141414",
+          "cornerRadius": 12,
+          "stroke": {
+            "align": "inside",
+            "thickness": 1,
+            "fill": "#1E1E1E"
+          },
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "IcYO5",
+              "name": "Header Row",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "i0gN1",
+                  "name": "BPM Section",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "z1qEt",
+                      "name": "BPM Dash",
+                      "fill": "#4B5563",
+                      "content": "—",
+                      "textAlign": "center",
+                      "fontFamily": "Roboto Mono",
+                      "fontSize": 40,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "0Iq9r",
+                      "name": "BPM Labels",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "8Obqc",
+                          "name": "BPM Label",
+                          "fill": "#4B5563",
+                          "content": "BPM",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "mYpNK",
+                          "name": "No BPM Badge",
+                          "fill": "#1E1E1E",
+                          "cornerRadius": 4,
+                          "padding": [
+                            2,
+                            6
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "yV89Z",
+                              "name": "No BPM Text",
+                              "fill": "#6B7280",
+                              "content": "파일 없음",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "csXhG",
+                  "name": "Analyze Button Disabled",
+                  "fill": "#2A2A2A",
+                  "cornerRadius": 8,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "0uXpv",
+                      "name": "Button Text",
+                      "fill": "#4B5563",
+                      "content": "BPM 분석",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ThnzE",
+              "name": "Metronome Controls Row",
+              "width": "fill_container",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "B16qm",
+                  "name": "Toggle Disabled",
+                  "fill": "#2A2A2A",
+                  "cornerRadius": 8,
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "xEREd",
+                      "name": "musicIconNF",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "music",
+                      "iconFontFamily": "lucide",
+                      "fill": "#4B5563"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Cv81G",
+                      "name": "Toggle Label",
+                      "fill": "#4B5563",
+                      "content": "OFF",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "XzxjB",
+                  "name": "Volume Section",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oBjnK",
+                      "name": "Volume Label",
+                      "fill": "#4B5563",
+                      "content": "볼륨",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ksMW4",
+                      "name": "Slider Track",
+                      "width": "fill_container",
+                      "height": 4,
+                      "fill": "#1E1E1E",
+                      "cornerRadius": 2,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "HWJuA",
+                          "name": "Slider Fill",
+                          "width": 0,
+                          "height": "fill_container",
+                          "fill": "#4B5563",
+                          "cornerRadius": 2
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "k6WDR",
+                      "name": "Volume Value",
+                      "fill": "#4B5563",
+                      "content": "70%",
+                      "textAlign": "right",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

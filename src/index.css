@@ -20,3 +20,63 @@ code {
   font-family: 'JetBrains Mono', source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Speed slider custom styles */
+.speed-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.speed-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.speed-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #FF6B35;
+  cursor: pointer;
+  margin-top: -3.5px;
+}
+
+.speed-slider::-moz-range-track {
+  height: 3px;
+  background: #2A2A2A;
+  border-radius: 2px;
+}
+
+.speed-slider::-moz-range-progress {
+  height: 3px;
+  background: #FF6B35;
+  border-radius: 2px 0 0 2px;
+}
+
+.speed-slider::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #FF6B35;
+  border: none;
+  cursor: pointer;
+}
+
+.speed-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.speed-slider:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+}
+
+.speed-slider:disabled::-moz-range-thumb {
+  cursor: not-allowed;
+}

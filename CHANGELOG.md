@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Speed Slider UI 개선**: 속도 제어 범위 슬라이더 추가
+  - HTML range input 슬라이더 (0.5x - 2.0x, 0.01 단계)
+  - 선형 그래디언트 진행률 시각화 (주황색 #FF6B35)
+  - 크로스 브라우저 지원 (WebKit + Firefox)
+  - 10px 원형 썸 디자인 with 다크 테마 통합
+  - +/- 버튼 유지 (기존 기능 보존)
+  - disabled 상태 지원
+
 - **BPM 자동 감지 및 메트로놈 기능 (SPEC-BPM-001)**: madmom/librosa 기반 BPM 분석 및 Web Worker 메트로놈
   - 오디오 파일 로드 시 자동 BPM 분석 (madmom DBNBeatTracker primary, librosa fallback)
   - 감지된 BPM 및 신뢰도 점수 표시

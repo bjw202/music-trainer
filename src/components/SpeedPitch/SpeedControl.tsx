@@ -35,6 +35,12 @@ export function SpeedControl({
   const isMin = speed <= SPEED_PITCH.MIN_SPEED
   const isMax = speed >= SPEED_PITCH.MAX_SPEED
 
+  // 슬라이더 채움 비율 (WebKit용 linear-gradient 배경)
+  const fillPercent =
+    ((speed - SPEED_PITCH.MIN_SPEED) /
+      (SPEED_PITCH.MAX_SPEED - SPEED_PITCH.MIN_SPEED)) *
+    100
+
   return (
     <div className="flex items-center gap-2">
       <label className="text-xs font-medium text-[#9CA3AF] w-12 shrink-0">
@@ -58,11 +64,25 @@ export function SpeedControl({
       </button>
       <div
         data-testid="speed-display"
-        className="flex-1 h-9 flex items-center justify-center bg-[#0A0A0A] border border-[#2A2A2A] rounded-lg"
+        className="flex-1 h-9 flex flex-col items-center justify-center bg-[#0A0A0A] border border-[#2A2A2A] rounded-lg px-2 gap-0.5"
       >
-        <span className="text-base font-semibold font-mono text-[#F5F5F5]">
+        <span className="text-sm font-semibold font-mono text-[#F5F5F5] leading-none">
           {speed.toFixed(2)}x
         </span>
+        <input
+          type="range"
+          min={SPEED_PITCH.MIN_SPEED}
+          max={SPEED_PITCH.MAX_SPEED}
+          step={SPEED_PITCH.SPEED_STEP}
+          value={speed}
+          onChange={(e) => onSpeedChange(parseFloat(e.target.value))}
+          disabled={disabled}
+          className="speed-slider w-full"
+          style={{
+            background: `linear-gradient(to right, #FF6B35 ${fillPercent}%, #2A2A2A ${fillPercent}%)`,
+          }}
+          aria-label="Speed slider"
+        />
       </div>
       <button
         data-testid="speed-increase"

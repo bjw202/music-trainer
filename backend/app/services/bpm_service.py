@@ -13,9 +13,24 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import collections
+import collections.abc
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# madmom 0.16.1 호환성 패치 (Python 3.13 + NumPy 2.x)
+# 1) collections.MutableSequence 등이 Python 3.10에서 collections.abc로 이동
+for _attr in ("MutableSequence", "MutableMapping", "MutableSet"):
+    if not hasattr(collections, _attr):
+        setattr(collections, _attr, getattr(collections.abc, _attr))
+# 2) np.float, np.int 등이 NumPy 1.24에서 제거됨 → numpy 스칼라 타입으로 복원
+_NP_COMPAT = {"float": np.float64, "int": np.int64, "complex": np.complex128,
+              "bool": np.bool_, "str": np.str_, "object": np.object_}
+for _name, _type in _NP_COMPAT.items():
+    if not hasattr(np, _name):
+        setattr(np, _name, _type)  # type: ignore[attr-defined]
 
 # 라이브러리 가용성 확인 (separation_service.py 패턴 참조)
 _MADMOM_AVAILABLE = False
@@ -102,6 +117,40 @@ def _calculate_confidence(beats: np.ndarray) -> float:
     return float(confidence)
 
 
+def _smooth_beats(beats: np.ndarray, window_size: int = 8) -> np.ndarray:
+    """비트 간격에 이동 중앙값 필터를 적용하여 이상치를 제거합니다.
+
+    인트로 등 비트 감지가 불안정한 구간의 바운싱을 완화하면서
+    곡 전체의 템포 변화는 유지합니다.
+
+    Args:
+        beats: 원본 비트 타임스탬프 배열 (초 단위).
+        window_size: 이동 중앙값 윈도우 크기 (기본값: 8비트).
+
+    Returns:
+        스무딩된 비트 타임스탬프 배열.
+    """
+    if len(beats) < 4:
+        return beats
+
+    intervals = np.diff(beats)
+    smoothed_intervals = np.copy(intervals)
+
+    half_w = window_size // 2
+    for i in range(len(intervals)):
+        start = max(0, i - half_w)
+        end = min(len(intervals), i + half_w + 1)
+        smoothed_intervals[i] = np.median(intervals[start:end])
+
+    # 스무딩된 간격으로 비트 위치 재구성 (첫 비트 위치 유지)
+    smoothed_beats = np.zeros(len(beats))
+    smoothed_beats[0] = beats[0]
+    for i in range(len(smoothed_intervals)):
+        smoothed_beats[i + 1] = smoothed_beats[i] + smoothed_intervals[i]
+
+    return smoothed_beats
+
+
 def _detect_with_madmom(audio_path: str) -> tuple[float, np.ndarray, float]:
     """madmom으로 BPM과 비트를 감지합니다.
 
@@ -121,11 +170,14 @@ def _detect_with_madmom(audio_path: str) -> tuple[float, np.ndarray, float]:
     if len(beats) < 2:
         return 0.0, beats, 0.0
 
+    # 비트 간격 스무딩 (인트로 등 불안정 구간 보정)
+    beats = _smooth_beats(beats)
+
     # BPM 계산 (중앙값 사용 - 이상치에 강건)
     intervals = np.diff(beats)
     bpm = 60.0 / np.median(intervals)
 
-    # 신뢰도 계산
+    # 신뢰도 계산 (스무딩 후 재계산)
     confidence = _calculate_confidence(beats)
 
     return bpm, beats, confidence
