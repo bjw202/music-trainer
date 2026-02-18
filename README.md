@@ -2,6 +2,56 @@
 
 기타 연습을 위한 웹 기반 오디오 트레이너입니다. A-B 루프, 파형 시각화, 키보드 단축키를 지원하여 효과적인 악기 연습 환경을 제공합니다.
 
+## 빠른 시작 (Quick Start)
+
+### 전제 조건
+
+아래 도구들을 미리 설치해야 합니다.
+
+| 도구 | macOS | Windows |
+|------|-------|---------|
+| Python 3.9+ | `brew install python` 또는 [python.org](https://python.org) | [python.org](https://python.org) 인스톨러 |
+| pnpm | `npm install -g pnpm` | `npm install -g pnpm` |
+| ffmpeg | `brew install ffmpeg` | `winget install ffmpeg` 또는 [ffmpeg.org](https://ffmpeg.org) |
+| git | Xcode Command Line Tools | [git-scm.com](https://git-scm.com) |
+
+### 설치 및 실행
+
+```bash
+git clone https://github.com/YOUR_REPO/guitar-mp3-trainer-v2.git
+cd guitar-mp3-trainer-v2
+```
+
+클론 후 OS에 맞는 원클릭 실행 파일을 더블클릭하면 나머지는 자동으로 처리됩니다.
+
+**macOS**: `Start Guitar Trainer.command` 파일을 더블클릭합니다.
+- 처음 실행 시 Gatekeeper 경고가 표시될 수 있습니다. 우클릭 후 "열기"를 선택하세요.
+- Terminal 창이 열리며 백엔드/프론트엔드가 자동으로 시작됩니다.
+
+**Windows**: `Start Guitar Trainer.bat` 파일을 더블클릭합니다.
+- CMD 창이 열리며 백엔드/프론트엔드가 자동으로 시작됩니다.
+
+실행 파일이 자동으로 처리하는 항목:
+1. Python 가상환경(`backend/.venv/`) 생성 (없는 경우)
+2. 백엔드 의존성 설치 (PyTorch, Demucs 등)
+3. 프론트엔드 의존성 설치 (`pnpm install`)
+4. `.env` 파일 생성 (없는 경우)
+5. FastAPI 백엔드 시작 (포트 8000)
+6. 브라우저 자동 열기
+7. Vite 프론트엔드 시작 (포트 5173)
+
+### 첫 실행 시 주의사항
+
+첫 실행 시 PyTorch와 Demucs 모델 다운로드로 **5~15분** 정도 소요될 수 있습니다. 이후 실행부터는 수 초 내에 시작됩니다. Terminal/CMD 창을 닫지 말고 완료될 때까지 기다려 주세요.
+
+### 접속 주소
+
+| 서비스 | 주소 |
+|--------|------|
+| 프론트엔드 (앱 UI) | http://localhost:5173 |
+| 백엔드 API | http://localhost:8000 |
+| API 문서 (Swagger) | http://localhost:8000/docs |
+
 ## 주요 기능
 
 - **오디오 파일 로드**: MP3, WAV, M4A, OGG 형식 지원 (드래그 앤 드롭)
