@@ -508,3 +508,91 @@ class TestCharacterization:
         assert repair_counts == {"inserted": 0, "dropped": 0}
         assert bpm == pytest.approx(120.0)
         assert confidence == pytest.approx(1.0)
+
+
+class TestConfidenceFormulaPinned:
+    """SPEC-BPM-003 AC-BPM-007 (a-2) — 동결 대상 두 지점을 값으로 고정한다.
+
+    기존 `TestConfidenceCalculation`은 `> 0.9` / `< 0.9` 두 부등호 단언뿐이라
+    `1.0 - cv`를 `1.0 - cv*0.5`로 바꾸거나 librosa 상한을 `0.9`로 올려도 그대로
+    통과한다. 즉 REQ-BPM-007의 동결을 강제하지 못한다. AC-BPM-007 (a)의 diff
+    검사도 파일이 옮겨지거나 커밋이 재작성되면 무력해진다. 이 클래스는 그 둘의
+    **병행 방어선**이며, 값 자체를 고정한다.
+
+    동결 대상 (spec.md REQ-BPM-007):
+      (1) `_calculate_confidence` 안의 `max(0.0, min(1.0, 1.0 - cv))`
+      (2) `_detect_with_librosa` 안의 `confidence = min(confidence, 0.8)`
+    """
+
+    def test_confidence_formula_pinned(self) -> None:
+        """등간격이 아닌 알려진 배열에서 `1.0 - std/mean`을 정확히 재현한다.
+
+        기대값을 상수로 적지 않고 테스트 안에서 다시 계산한다 — 상수로 적으면
+        공식이 바뀌었을 때 "테스트를 새 값으로 고치면 통과"하는 경로가 열린다.
+        """
+        from app.services.bpm_service import _calculate_confidence
+
+        beats = np.array([0.0, 0.5, 1.1, 1.5, 2.1, 2.5])
+
+        intervals = np.diff(beats)
+        expected = 1.0 - float(np.std(intervals)) / float(np.mean(intervals))
+
+        actual = _calculate_confidence(beats)
+
+        # 이 배열은 클램프에 걸리지 않는 구간에 있다 — 클램프가 차이를 가리지 않는다.
+        assert 0.0 < expected < 1.0, expected
+        assert abs(actual - expected) <= 1e-12, (
+            f"신뢰도 공식이 변경되었다: actual={actual!r}, expected={expected!r}"
+        )
+
+    def test_confidence_formula_pinned_boundaries(self) -> None:
+        """클램프 `max(0.0, min(1.0, ...))`의 양 끝을 고정한다."""
+        from app.services.bpm_service import _calculate_confidence
+
+        # 완전 등간격 → cv == 0 → 정확히 1.0
+        uniform = np.arange(8, dtype=float) * 0.5
+        assert _calculate_confidence(uniform) == 1.0
+
+        # 표준편차가 평균을 넘는 배열 → 1.0 - cv < 0 → 하한 클램프로 정확히 0.0
+        intervals = [0.001, 0.001, 0.001, 4.0]
+        beats = [0.0]
+        for gap in intervals:
+            beats.append(beats[-1] + gap)
+        skewed = np.asarray(beats, dtype=float)
+
+        diffs = np.diff(skewed)
+        assert float(np.std(diffs)) > float(np.mean(diffs)), (
+            "입력이 하한 클램프를 건드리지 않는다"
+        )
+        assert _calculate_confidence(skewed) == 0.0
+
+    def test_librosa_confidence_cap_pinned(self) -> None:
+        """librosa 경로의 보수적 상한 `min(confidence, 0.8)`을 값으로 고정한다.
+
+        [HARD] `_detect_with_librosa` 자체를 패치하지 않는다 — 패치하면 상한 줄이
+        실행되지 않아 아무것도 고정하지 못한다(spec.md D15 CT-2의 모킹 계층 원칙과
+        동일). librosa 호출부(`load` / `beat.beat_track` / `frames_to_time`)만
+        패치하고 함수 본문은 실제로 실행되게 한다.
+
+        완전 등간격 비트를 돌려주므로 상한이 없다면 신뢰도는 1.0이 된다. 즉 이
+        테스트는 상한이 실제로 적용될 때만 통과한다.
+        """
+        from unittest.mock import MagicMock
+
+        from app.services import bpm_service
+
+        uniform_beat_times = np.arange(16, dtype=float) * 0.5
+
+        fake_librosa = MagicMock()
+        fake_librosa.load.return_value = (np.zeros(1000, dtype=float), 22050)
+        fake_librosa.beat.beat_track.return_value = (120.0, np.arange(16))
+        fake_librosa.frames_to_time.return_value = uniform_beat_times
+
+        with patch.object(bpm_service, "librosa", fake_librosa):
+            bpm, beats, confidence = bpm_service._detect_with_librosa("dummy.mp3")
+
+        # 상한이 없었다면 이 입력의 신뢰도는 1.0 이다.
+        assert bpm_service._calculate_confidence(uniform_beat_times) == 1.0
+        assert confidence == 0.8, f"librosa 신뢰도 상한이 변경되었다: {confidence!r}"
+        assert bpm == pytest.approx(120.0)
+        np.testing.assert_allclose(beats, uniform_beat_times)

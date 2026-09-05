@@ -1085,3 +1085,65 @@ exit=0
 ```
 
 **PASS.** 함수 정의 삭제 후에도 값이 그대로다 — M2의 호출 교체가 이미 드리프트를 없앴고 M5는 죽은 코드를 걷어낸 것이므로, 이 동일성이 예상된 결과다. 캐시는 `--no-cache`로 우회했다(`/tmp/bpm_cache`를 지우는 형태는 이 세션의 명령 가드가 거부한다).
+
+---
+
+## AC-BPM-007 (a-2) — pinned 테스트 3건
+
+**계획서에 배정되지 않은 항목이었다.** acceptance.md AC-BPM-007 (a-2)가 이 세 테스트를 요구하고 Definition of Done에도 올라 있으나, plan.md의 어느 마일스톤도 이를 자기 작업으로 적지 않았다. M5 착수 시점에 세 건 모두 미작성 상태였으므로 여기서 채운다.
+
+**왜 필요한가.** 기존 `TestConfidenceCalculation`은 `> 0.9` / `< 0.9` 두 부등호 단언뿐이라(`test_bpm.py:438,449`) 공식을 `1.0 - cv*0.5`로 바꾸거나 librosa 상한을 `0.9`로 올려도 그대로 통과한다. AC-BPM-007 (a)의 diff 검사는 파일 이동·커밋 재작성에 무력하다. 즉 REQ-BPM-007의 동결을 실제로 강제하는 장치가 없었다.
+
+추가 위치: `backend/tests/test_bpm.py`의 신설 클래스 `TestConfidenceFormulaPinned`.
+
+| 테스트 | 고정 대상 | 방식 |
+|--------|----------|------|
+| `test_confidence_formula_pinned` | `_calculate_confidence`의 `1.0 - cv` | 배열 `[0.0, 0.5, 1.1, 1.5, 2.1, 2.5]`에 대해 `1.0 - std/mean`을 **테스트 안에서 다시 계산**해 `abs(actual - expected) <= 1e-12` 비교. 기대값을 상수로 적지 않았다 — 상수는 "공식이 바뀌면 테스트 숫자를 고쳐 통과"하는 경로를 연다 |
+| `test_confidence_formula_pinned_boundaries` | `max(0.0, min(1.0, ...))` 클램프 양 끝 | 완전 등간격 → 정확히 `1.0`, 표준편차가 평균을 넘는 배열(간격 `[0.001, 0.001, 0.001, 4.0]`) → 정확히 `0.0`. 입력이 실제로 하한을 건드리는지 테스트가 스스로 단언한다 |
+| `test_librosa_confidence_cap_pinned` | `_detect_with_librosa`의 `min(confidence, 0.8)` | `app.services.bpm_service.librosa`만 `MagicMock`으로 교체하고 `_detect_with_librosa`는 **실제로 실행**. 등간격 비트를 돌려주므로 상한이 없으면 1.0이 나오며, 반환값이 정확히 `0.8`임을 단언 |
+
+`test_librosa_confidence_cap_pinned`은 **`_detect_with_librosa`를 패치하지 않는다.** 패치하면 상한 줄이 실행되지 않아 아무것도 고정하지 못한다(spec.md D15 CT-2의 모킹 계층 원칙과 동일). 테스트가 상한의 존재에 의존한다는 사실은 같은 테스트 안의 `_calculate_confidence(uniform) == 1.0` 단언이 보인다 — 상한이 없다면 1.0이 반환될 입력이다.
+
+### 실행 [P] — `pwd = <worktree>/backend`
+
+```
+$ <interpreter> -m pytest tests/test_bpm.py -k "pinned" -v
+collected 29 items / 26 deselected / 3 selected
+tests/test_bpm.py::TestConfidenceFormulaPinned::test_confidence_formula_pinned PASSED
+tests/test_bpm.py::TestConfidenceFormulaPinned::test_confidence_formula_pinned_boundaries PASSED
+tests/test_bpm.py::TestConfidenceFormulaPinned::test_librosa_confidence_cap_pinned PASSED
+3 passed, 26 deselected, 7 warnings in 0.02s
+exit=0
+```
+
+```
+$ <interpreter> -m pytest tests/test_bpm.py::TestConfidenceCalculation -v
+collected 2 items
+test_calculate_confidence_consistent_tempo PASSED
+test_calculate_confidence_irregular_tempo PASSED
+2 passed, 7 warnings in 0.01s
+exit=0
+```
+
+**무수정 확인:** `git diff cfd5475..HEAD -- backend/tests/test_bpm.py | grep -c "test_calculate_confidence"` → `0`. 이 SPEC의 어떤 커밋도 `TestConfidenceCalculation`의 두 테스트를 건드리지 않았다(REQ-BPM-007 동결).
+
+### 변이 검증 — 이 테스트들이 실제로 물어뜯는가 [P]
+
+**추가한 테스트가 통과한다는 사실만으로는 동결을 강제한다는 증거가 되지 않는다.** 동결 대상을 실제로 바꿔 보고 실패하는지 확인했다. 변이는 임시로만 적용했고, 매회 `git checkout -- backend/app/services/bpm_service.py`로 되돌린 뒤 `git diff --stat`이 비어 있음을 확인했다. 커밋된 트리에는 변이가 남아 있지 않다.
+
+| 변이 | 위치 | 결과 |
+|------|------|------|
+| `1.0 - cv` → `1.0 - cv * 0.5` | `_calculate_confidence` 124행 | `2 failed, 1 passed` — `test_confidence_formula_pinned`, `test_confidence_formula_pinned_boundaries` **FAILED** (exit=1) |
+| `min(confidence, 0.8)` → `min(confidence, 0.9)` | `_detect_with_librosa` 260행 | `1 failed, 2 passed` — `test_librosa_confidence_cap_pinned` **FAILED** (exit=1) |
+
+두 변이가 세 테스트를 모두 덮는다. 첫 변이에서 `test_librosa_confidence_cap_pinned`이 통과한 것은 정상이다 — 등간격 입력에서는 `cv == 0`이라 공식 변형이 값을 바꾸지 않고, 상한 `0.8`은 그대로이기 때문이다. 그 테스트의 담당 지점은 두 번째 변이가 판정한다.
+
+### 전체 스위트 [P]
+
+```
+$ <interpreter> -m pytest tests/ -q
+147 passed, 8 warnings in 0.53s
+exit=0
+```
+
+144 → 147은 신설 3건에 정확히 대응한다.
