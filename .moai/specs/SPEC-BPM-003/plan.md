@@ -1,7 +1,7 @@
 ---
 id: SPEC-BPM-003
 title: 비트그리드 전역 재구성 제거 및 감지기 출력 신뢰 — 구현 계획
-version: 1.2.0
+version: 1.3.0
 status: draft
 priority: P0
 created: 2026-09-05
@@ -257,10 +257,14 @@ DDD 순서: 1·2는 원본 동작이므로 PRESERVE(골든)로 먼저 고정된 
 
 원본에 **없던** 표면만 여기 남는다. 계약을 먼저 쓰고 구현한다.
 
-3. `--json` 출력이 유효한 JSON이고 계약 키를 모두 포함: `max_drift_ms`, `last_beat_drift_ms`, `mean_drift_ms`, `beat_count`, `matched_count`, `inserted_count`, `dropped_count`, `engine`
+3. `--json` 출력이 유효한 JSON이고 계약 키를 모두 포함: `max_drift_ms`, `last_beat_drift_ms`, `mean_drift_ms`, `beat_count`, `matched_count`, `inserted_count`, `dropped_count`, `engine`, `service_inserted`, `service_dropped`
 4. 존재하지 않는 파일 경로 → 0이 아닌 exit code + **stderr** 메시지 (stdout은 비어 있어야 한다)
+8. `--threshold-ms 5.0`(= `MATCH_TOLERANCE_MS`) 및 `--threshold-ms 9.0`(> tolerance)으로 실행 → **측정하지 않고** 0이 아닌 exit code + stderr에 불변식 위반 메시지 (N1 방어선)
+9. 서비스 보고 건수와 스크립트 분류 건수가 어긋나도록 조작한 입력 → `inserted_count != service_inserted`를 스크립트가 스스로 감지해 0이 아닌 exit code (N2 방어선)
 
 `--threshold-ms` 초과 시 exit 1은 3의 계약에 포함된다(임계 판정 대상은 감지기 유래 비트의 `max_drift_ms`이며, `inserted_count`는 exit code에 영향을 주지 않는다).
+
+케이스 8·9는 **기준 자체를 지키는 기준**이다. 8이 없으면 임계를 tolerance 이상으로 올려 위반 비트를 삽입으로 재분류할 수 있고, 9가 없으면 오분류가 조용히 통과한다. 둘 다 없으면 AC-BPM-006-AFTER는 D2 수정 이전 상태로 되돌아간다.
 
 ### GREEN
 
@@ -273,10 +277,16 @@ usage: python scripts/measure_beatgrid_drift.py <audio-path>
 동작:
   1. 감지기 원본 출력 획득 (madmom 가용 시 madmom 감지 단계, 아니면 librosa) — 보정 이전 배열
   2. BpmService.analyze(path).beats 로 방출 그리드 획득
+  0. [HARD] assert MATCH_TOLERANCE_MS > threshold_ms — 성립하지 않으면 측정하지 않고 중단
+     (tolerance ≤ threshold 면 임계 위반 비트가 전부 "삽입"으로 빠져나간다. spec.md 4.2절)
+  1'. BpmService 로부터 서비스 측 보정 건수(service_inserted / service_dropped)도 함께 받는다
   3. emitted[i] 각각에 대해 가장 가까운 detector[j] 탐색 → |차이| * 1000 (ms)
      거리 ≤ MATCH_TOLERANCE_MS(5.0) 이면 "감지기 유래", 아니면 "삽입"으로 분류
   4. 감지기 유래 비트에 대해서만 max / last / mean 산출
      + beat_count / matched_count / inserted_count / dropped_count / engine
+     + service_inserted / service_dropped
+  4'. [HARD] assert inserted_count == service_inserted and dropped_count == service_dropped
+      어긋나면 측정값을 출력하되 0이 아닌 exit code 로 중단 (오분류 감지)
   5. 표(stdout) 또는 JSON(stdout) 출력, 감지기 유래 max > threshold 면 exit 1
 
   --legacy-index-diff: 3~4를 원본 방식(인덱스 정렬 차분, 분류 없음)으로 계산.

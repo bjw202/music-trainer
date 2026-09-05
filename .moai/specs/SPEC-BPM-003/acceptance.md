@@ -1,7 +1,7 @@
 ---
 id: SPEC-BPM-003
 title: 비트그리드 전역 재구성 제거 및 감지기 출력 신뢰 — 수용 기준
-version: 1.2.0
+version: 1.3.0
 status: draft
 priority: P0
 created: 2026-09-05
@@ -22,8 +22,10 @@ tags: bpm, beatgrid, drift, acceptance
 | 형식 | Given-When-Then + 기계 검증 명령 |
 | 원칙 | 모든 기준은 **명령 + 기대 결과** 쌍을 가지며, 실패할 수 있는 형태로 진술된다 |
 | 추적 | 각 AC 제목에 검증 대상 요구사항 id를 명기한다 (1.2.0 — 감사 D8) |
+| 실패 가능성 | [HARD] 각 기준은 "이 명령이 실패하려면 무엇이 참이어야 하는가"에 답할 수 있어야 한다. 답이 "없음"이면 그 기준은 통과가 아니라 결함이다 (1.3.0) |
+| grep 부재 검사 | [HARD] `exit=1`(매치 없음)만 통과다. **`exit=2`는 검사 불발이며 통과가 아니다** — 정규식 거부나 파일 열기 실패이고, 둘 다 "매치 없음"과 구별되지 않는 0건 출력을 낸다 (1.3.0) |
 
-> 본 문서는 SPEC 1.2.0 기준이다. 1.1.0에서 전제 네 건이 정정되었고, 1.2.0에서 독립 계획 감사 iter-1(FAIL 0.70)의 지적이 반영되었다. 근거는 spec.md 0절.
+> 본 문서는 SPEC 1.3.0 기준이다. 1.1.0에서 전제 네 건이, 1.2.0에서 독립 계획 감사 iter-1(FAIL 0.70)의 지적 20건이, 1.3.0에서 iter-2(PASS 0.91)의 신규 SHOULD-FIX 3건이 반영되었다. 근거는 spec.md 0절.
 
 ---
 
@@ -165,10 +167,14 @@ grep -rn "_smooth_beats" backend/ ; echo "exit=$?"
 ```bash
 # [W] 변수명과 무관하게 "같은 배열의 앞 원소 + 간격"을 뒷 원소에 대입하는 형태를 잡는다.
 #     식별자는 \w+ 로 두고, 좌변 인덱스가 i+1, 우변 인덱스가 i 인 자기참조 누적만 매치한다.
-grep -rnE '(\w+)\[[[:space:]]*i[[:space:]]*\+[[:space:]]*1[[:space:]]*\][[:space:]]*=[[:space:]]*\1\[[[:space:]]*i[[:space:]]*\]' backend/app/services/bpm_service.py; echo "exit=$?"
+#     [HARD] -P (PCRE) 로 실행할 것. 역참조 \1 은 POSIX ERE 에 없는 확장이며,
+#     -E 로 실행하면 이 머신의 grep(ugrep 7.8.4)에서 "invalid escape" 로 exit 2 가 난다.
+grep -rnP '(\w+)\[\s*i\s*\+\s*1\s*\]\s*=\s*\1\[\s*i\s*\]' backend/app/services/bpm_service.py; echo "exit=$?"
 ```
 
 **기대 결과:** 출력 없음, `exit=1`. 매치가 하나라도 있으면 **실패**다.
+
+**`exit=2`는 통과가 아니라 검사 불발이다.** grep이 정규식을 거부했거나 파일을 열지 못한 경우이며, 이때는 "매치 없음"과 구별되지 않는 0건 출력이 나온다. `exit`가 0도 1도 아니면 그 자리에서 멈추고 원인을 해결한 뒤 다시 실행한다 — 0건 출력을 근거로 통과 표기하지 않는다. (1.3.0에서 확인: `-E` 판은 실제로 `exit 2`를 냈다. `grep -P` 가용성은 `grep --version`이 `-P:pcre2` 계열을 보고하는지로 확인한다.)
 
 이 검사는 함수를 지워도 통과한다는 점에서 여전히 약하므로, **국소 보정이 원본 비트를 이동시키지 않는다는 실질 보증은 AC-BPM-002의 `test_repair_no_cumulative_shift`가 진다.** grep은 "축소판이 남았는가"의 1차 필터이고, 불변식 테스트가 본 방어선이다.
 
@@ -313,7 +319,7 @@ git ls-files --error-unmatch scripts/measure_beatgrid_drift.py; echo "tracked_ex
 # [P] stdout 은 JSON 문서 하나만 담아야 한다. 안내·경고가 섞이면 json.load 가 실패한다.
 rm -rf /tmp/bpm_cache
 backend/.venv/bin/python scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3" --json \
-  | backend/.venv/bin/python -c "import json,sys; d=json.load(sys.stdin); ks={'max_drift_ms','last_beat_drift_ms','mean_drift_ms','beat_count','matched_count','inserted_count','dropped_count','engine'}; assert ks <= d.keys(), f'missing: {ks - d.keys()}'; print('KEYS OK', d)"
+  | backend/.venv/bin/python -c "import json,sys; d=json.load(sys.stdin); ks={'max_drift_ms','last_beat_drift_ms','mean_drift_ms','beat_count','matched_count','inserted_count','dropped_count','engine','service_inserted','service_dropped'}; assert ks <= d.keys(), f'missing: {ks - d.keys()}'; print('KEYS OK', d)"
 ```
 
 **기대 결과:** `KEYS OK {...}` 출력, exit 0. 키 누락이면 AssertionError로 실패.
@@ -438,7 +444,7 @@ grep -n "_smooth_beats(beats)" backend/app/services/bpm_service.py; echo "exit=$
 ```bash
 # [P]
 rm -rf /tmp/bpm_cache
-git rev-parse HEAD | tee /tmp/base-sha.txt   # AC-BPM-007 (a)의 diff 기준선
+git rev-parse HEAD
 backend/.venv/bin/python scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3" --json | tee /tmp/drift-before.json
 ```
 
@@ -476,10 +482,29 @@ backend/.venv/bin/python scripts/measure_beatgrid_drift.py "music-source/Deep Pu
 # [P] 스크립트가 보고한 건수와 서비스가 남긴 보정 로그의 건수를 맞춘다.
 rm -rf /tmp/bpm_cache
 backend/.venv/bin/python scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3" --json \
-  | backend/.venv/bin/python -c "import json,sys; d=json.load(sys.stdin); print('inserted=%d dropped=%d matched=%d beat_count=%d' % (d['inserted_count'], d['dropped_count'], d['matched_count'], d['beat_count'])); assert d['matched_count'] + d['inserted_count'] == d['beat_count'], d"
+  | backend/.venv/bin/python -c "
+import json,sys
+d = json.load(sys.stdin)
+print('inserted=%(inserted_count)d dropped=%(dropped_count)d matched=%(matched_count)d beat_count=%(beat_count)d service_inserted=%(service_inserted)d service_dropped=%(service_dropped)d' % d)
+assert d['matched_count'] + d['inserted_count'] == d['beat_count'], ('identity broken', d)
+assert d['inserted_count'] == d['service_inserted'], ('insert count mismatch', d)
+assert d['dropped_count'] == d['service_dropped'], ('drop count mismatch', d)
+"
 ```
 
-**기대 결과:** 값 출력 + `matched_count + inserted_count == beat_count` 성립, exit 0. 이 항등식이 깨지면 분류 로직이 틀린 것이며 **실패**다. 출력된 건수를 `_repair_beats`의 `logger.info` 보정 건수와 대조해 `progress.md`에 나란히 기록한다. **두 수가 다르면 실패다** — 스크립트가 재는 삽입과 서비스가 실제로 한 삽입이 다르다는 뜻이므로, 지표 자체를 믿을 수 없다.
+**기대 결과:** 값 출력, 세 단언 모두 통과, exit 0.
+
+**세 단언의 판정력이 서로 다르다는 점이 이 기준의 핵심이다.**
+
+| 단언 | 무엇을 잡는가 | 실패하려면 |
+|------|-------------|-----------|
+| `matched + inserted == beat_count` | 분류가 `emitted`를 빠짐없이 나누는지 | `beat_count != len(emitted)`이거나 분류가 비트를 흘림 — **`beat_count == len(emitted)`인 한 구성상 성립하므로 판정력이 약하다** |
+| `inserted_count == service_inserted` | 스크립트가 "삽입"이라 부른 집합이 서비스가 실제로 삽입한 집합과 같은지 | 감지기 유래 비트가 오분류되어 삽입으로 넘어감 — **`MATCH_TOLERANCE_MS` 오설정이나 최근접 대응 결함이 여기서 잡힌다** |
+| `dropped_count == service_dropped` | 제거 건수 일치 | 위와 같은 방향의 오분류 |
+
+두 번째·세 번째가 실질 방어선이다. 첫 번째만으로는 **기준 위반 비트가 조용히 삽입으로 재분류되어 `max_drift_ms`에서 빠지는 경로**를 막지 못한다 — 그 경로가 열리면 AC-BPM-006-AFTER는 D2 수정 이전의 "구성상 통과하는 기준"으로 되돌아간다.
+
+`service_inserted` / `service_dropped`는 `_repair_beats`가 반환한 건수(spec.md 4.1절)를 스크립트가 그대로 실은 값이므로, 이 대조는 사람이 로그를 눈으로 맞추는 절차가 아니라 명령 하나로 판정된다. 출력 전문은 `progress.md`에 기록한다.
 
 임계 1.0ms의 근거: 코드가 비트를 소수점 3자리로 반올림하므로 **감지기 유래 비트**의 이론적 편차 상한은 0.5ms다. 1.0ms를 넘는다는 것은 그 비트들에 반올림 이외의 변환이 남아 있다는 뜻이며, 이 기준은 그때 실패한다. 이 기준이 실패 가능하다는 점은 다음으로 보장된다 — `_repair_beats`가 원본 비트를 조금이라도 이동시키면(예: 국소 중앙값으로 위치를 대체하는 축소판이 남으면) 감지기 유래 비트의 편차가 즉시 1.0ms를 넘는다.
 
