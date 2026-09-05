@@ -566,6 +566,41 @@ class TestConfidenceFormulaPinned:
         )
         assert _calculate_confidence(skewed) == 0.0
 
+    def test_confidence_upper_clamp_pinned(self) -> None:
+        """상한 클램프 `min(1.0, ...)`을 **초과가 실제로 발생하는 입력**으로 고정한다.
+
+        [리드 결정 — pinned 4번째 추가] acceptance.md AC-BPM-007 (a-2)가 지정한
+        테스트는 세 건이지만, 그 셋으로는 `min(1.0, ...)` 조각이 고정되지 않는다.
+        뮤테이션 `min(1.0, ...)` → `min(2.0, ...)`에서 셋 다 통과하고 전체 스위트도
+        통과했다(생존자). REQ-BPM-007이 동결하는 표현식은
+        `max(0.0, min(1.0, 1.0 - cv))` **전체**이므로 그 조각도 방어선이 필요하다.
+
+        위 `..._boundaries`가 상한을 덮지 못하는 이유: 등간격 입력은 `cv == 0`이라
+        `1.0 - cv`가 정확히 `1.0`이고, 잘라낼 초과분이 없어 클램프가 실행되지
+        않는다. 통과하지만 아무것도 고정하지 못하는 형태다.
+
+        초과를 만드는 조건은 `cv < 0`, 즉 `mean_interval < 0`이다. 비트가 감소하는
+        배열이 그렇다. 정상 입력에서 비트는 단조 증가하므로 실사용에서 이 경로는
+        밟히지 않지만, "안 밟히니 괜찮다"는 동결이 강제된다는 뜻이 아니다.
+        """
+        from app.services.bpm_service import _calculate_confidence
+
+        descending = np.array([5.0, 4.0, 3.1, 2.0, 1.1, 0.0])
+
+        intervals = np.diff(descending)
+        unclamped = 1.0 - float(np.std(intervals)) / float(np.mean(intervals))
+
+        # 입력이 실제로 상한을 넘는지 먼저 확인한다 — 넘지 않으면 이 테스트는
+        # 클램프를 통과하지 않으므로 아무것도 고정하지 못한다.
+        assert unclamped > 1.0, (
+            f"입력이 상한 클램프를 건드리지 않는다: unclamped={unclamped!r}"
+        )
+
+        assert _calculate_confidence(descending) == 1.0, (
+            "상한 클램프 min(1.0, ...)가 변경되었다: "
+            f"unclamped={unclamped!r}"
+        )
+
     def test_librosa_confidence_cap_pinned(self) -> None:
         """librosa 경로의 보수적 상한 `min(confidence, 0.8)`을 값으로 고정한다.
 

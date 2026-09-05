@@ -1587,3 +1587,140 @@ engine=madmom confidence=0.968 repair={'inserted': 0, 'dropped': 0}
 | confidence | 0.978 | **0.968** | 0.0 ≤ x ≤ 1.0 | **PASS** |
 
 confidence가 0.978 → 0.968로 낮아진 것은 **예상된 결과이며 실패가 아니다**(spec.md 4.2절). 평활화가 만들어내던 인공적 규칙성이 사라지고 감지 품질이 정직하게 반영된 것이다. 변화폭이 0.010으로 작은 이유는 이 곡에서 국소 보정이 한 건도 발동하지 않았고(`repair={'inserted': 0, 'dropped': 0}`) 감지기 출력 자체가 이미 규칙적이기 때문이다.
+
+---
+
+## 리드 결정 — pinned 4번째 추가 (`test_confidence_upper_clamp_pinned`)
+
+**(a) 문서와 다른 점.** acceptance.md AC-BPM-007 (a-2)가 지정한 pinned 테스트는 **3건**이나, 실제 구현은 **4건**이다. 네 번째는 문서에 없는 테스트다. acceptance.md 본문은 고치지 않았다 — 문서와 구현의 이 불일치 정정은 sync 소관이다.
+
+**(b) 이유.** 지정된 3건으로는 REQ-BPM-007이 동결하는 표현식 `max(0.0, min(1.0, 1.0 - cv))` 중 **상한 클램프 `min(1.0, ...)` 조각이 고정되지 않는다.** 뮤테이션으로 확인된 사실이며, 문서 해석이 아니다.
+
+기존 `test_confidence_formula_pinned_boundaries`가 상한을 덮지 못하는 구조적 이유: 등간격 입력은 `cv == 0`이므로 `1.0 - cv`가 **정확히 1.0**이고, 잘라낼 초과분이 없어 클램프 연산이 실행되지 않는다. 통과하지만 아무것도 고정하지 못하는 형태 — 이 카드가 반복해서 걸러낸 양식 그대로다.
+
+초과를 만드는 조건은 `cv < 0`, 즉 `mean_interval < 0`이다. 비트가 감소하는 배열이 그렇다. 정상 입력에서 비트는 단조 증가하므로 실사용에서 이 경로는 밟히지 않지만, **"안 밟히니 괜찮다"는 동결이 강제된다는 뜻이 아니라 동결의 한 조각이 검증되지 않은 채 남아 있다는 뜻이다.**
+
+sync로 미루지 않은 이유(리드 판단): 문서 문구 문제가 아니라 실제로 비어 있는 방어선이고, 미루면 그동안 아무도 지키지 않는다.
+
+**(c) 뮤테이션 결과.** 통과 자체를 증거로 삼지 않기 위해 확인했다.
+
+```
+$ <interpreter> -m pytest tests/test_bpm.py -k "pinned" -v     (원본 코드)
+collected 30 items / 26 deselected / 4 selected
+  test_confidence_formula_pinned              PASSED
+  test_confidence_formula_pinned_boundaries   PASSED
+  test_confidence_upper_clamp_pinned          PASSED
+  test_librosa_confidence_cap_pinned          PASSED
+4 passed, 26 deselected
+
+$ 뮤테이션 C 적용: 124행 max(0.0, min(1.0, 1.0 - cv)) → max(0.0, min(2.0, 1.0 - cv))
+$ <interpreter> -m pytest tests/test_bpm.py -k "pinned" -v
+  test_confidence_formula_pinned              PASSED
+  test_confidence_formula_pinned_boundaries   PASSED
+  test_confidence_upper_clamp_pinned          FAILED   ← 잡았다
+  test_librosa_confidence_cap_pinned          PASSED
+1 failed, 3 passed
+```
+
+**뮤테이션 이전에는 이 상태에서 `3 passed`(생존)였다.** 네 번째 테스트만 정확히 실패하므로, 이 테스트는 상한 클램프를 실제로 고정한다.
+
+복구 확인:
+```
+$ git checkout -- backend/app/services/bpm_service.py
+$ grep -n "max(0.0, min(" backend/app/services/bpm_service.py
+124:    confidence = max(0.0, min(1.0, 1.0 - cv))
+$ git status --short   → 추적 파일 변경은 backend/tests/test_bpm.py 하나뿐
+$ <interpreter> -m pytest tests/ -q   → 148 passed
+```
+
+수집 개수 확인: `-k "pinned"`가 **4 selected / 4 passed**이며 `0 selected`도 `no tests ran`도 아니다.
+
+---
+
+## 미해결 판정 기록 — 리드 결정 3건
+
+### AC-BPM-010 프론트엔드 — FAIL 유지, 이 카드에서 고치지 않는다
+
+**(a) 판정: FAIL.** `npm test -- --run` → `npm_exit=1`, `Tests 1 failed | 259 passed (260)`. 실패 대상은 `tests/unit/core/MetronomeEngine.test.ts > 다운비트는 880Hz, 업비트는 440Hz로 재생해야 한다`. `npx tsc --noEmit`은 `exit=0`.
+
+**(b) 리드 재현 결과.** run 레인은 diff로 인과를 배제했고(이 카드의 프론트엔드 변경은 `src/api/bpm.ts` 2행뿐, 실패 테스트와 그 대상 소스는 `cfd5475` 대비 바이트 동일), 리드는 한 걸음 더 나아가 **주 체크아웃 `main`(이 카드의 변경이 하나도 없는 트리)에서 같은 테스트를 실행해 `Tests 1 failed | 15 passed`로 동일하게 실패함을 확인했다.** 이 카드 이전부터 존재하던 결함이다.
+
+**(c) 범위 경계.** 실패 대상인 메트로놈 다운비트 주파수는 백로그 카드 **t2**(스템 메트로놈 배선)와 **t4**(다운비트 880Hz 활성화)가 다루는 영역이며, 그쪽에서 처리될 사안이다.
+
+**기준을 넓히지 않은 이유.** "이 카드와 무관한 실패는 제외한다"로 기준을 재정의하지 않았다. **무관함은 원인 설명이지 면제 사유가 아니다.** AC-BPM-010의 프론트엔드 기준은 "두 단계 모두 exit=0"이고 실측은 `npm_exit=1`이므로 판정은 FAIL이다.
+
+### AC-BPM-010 백엔드 커버리지 — 실측 92.45% 인정, 문구 정정은 sync 이월
+
+두 표기의 출력 대비(같은 테스트 실행):
+
+| 표기 | 결과 |
+|------|------|
+| `--cov=app/services/bpm_service` (acceptance.md 문언) | `CoverageWarning: module-not-imported`, `Total coverage: 0.00%`, **`exit=1`** |
+| `--cov=app.services.bpm_service` (교정) | `bpm_service.py 159 stmts / 12 miss / 92%`, `Total coverage: 92.45%`, **`exit=0`** |
+
+`0.00%`는 "커버리지 없음"이 아니라 **"재지 못함"** 이다 — 슬래시 표기가 파일에도 패키지에도 매칭되지 않아 측정 대상이 비었다. **임계 `--cov-fail-under=85`는 손대지 않았다.** 이 건은 실패 쪽으로 떨어지므로 조용히 통과할 위험이 없다.
+
+### PRE-4 (c) — 선언된 목적과 실제 동작의 간극 (sync 이월)
+
+**(a) 간극.** acceptance.md는 PRE-4 (c)를 "**인자 수용 확인 (선언·설치가 실제 효력을 갖는지)**"로 규정하고, "(a)(b)가 통과해도 이 명령이 실패하면 AC-BPM-010은 통과로 표기할 수 없다"고 적어 실효성 관문의 지위를 부여했다. 실제로 (c)가 확인하는 것은 "pytest가 `--cov` 인자를 거부하지 않았다" 하나뿐이다. pytest는 인자를 받아들이기만 하고 대상이 매칭되는지는 보지 않는다.
+
+**(b) exit 코드 대비 (리드 재현 포함).**
+
+```
+--cov=app/services/bpm_service     --collect-only → collect_only_exit=0   (그러나 실측정은 0.00%, exit=1)
+--cov=totally/nonexistent/target   --collect-only → nonsense_target_exit=0  ← 리드 재현
+```
+
+**존재하지 않는 대상으로도 통과한다.** (c)는 커버리지 대상이 무엇이든, 존재하든 안 하든 항상 통과한다.
+
+**(c) 실제 방어선.** 커버리지 미측정을 막은 것은 (c)가 아니라 **`--cov-fail-under=85` 임계 인자**였다. 0.00%가 임계에 걸려 `exit=1`로 떨어졌기 때문에 통과 표기 경로가 닫혔다.
+
+**(d) 정정 방향.** (c)를 `--collect-only`가 아니라 **실제 측정**으로 바꾸고, `Total coverage: 0.00%`가 아님을 함께 확인하면 닫힌다. 수용기준 본문 정정은 run 단계의 권한이 아니므로 sync 소관으로 이월한다.
+
+---
+
+## 패턴 기록 — 결함을 고치려고 만든 장치가 같은 결함을 가진 사례 2건 (sync-auditor 참고)
+
+이 카드에서 **감사 지적에 대응해 새로 만든 장치가 그 지적과 같은 결함을 갖고 있던** 경우가 두 번 있었다. 개별 결함이 아니라 반복되는 형태이므로 나란히 기록한다.
+
+| # | 감사 지적 | 그에 대응해 만든 장치 | 그 장치가 가진 같은 결함 |
+|---|----------|---------------------|------------------------|
+| 1 | **D2** — 삽입 비트가 드리프트 통계를 지배해 사후 기준이 구성상 실패한다 | 최근접 대응 + 감지기 유래/삽입 **분류** 규칙 (`MATCH_TOLERANCE_MS = 5.0`) | 그 분류가 **사전 기준선에도 적용되어**, 재려는 수백 ms 드리프트가 전부 "삽입"으로 재분류되며 지표에서 사라졌다. AC-BPM-006-BEFORE가 충족 불가능해졌고, `--legacy-index-diff` 모드로 측정하는 리드 결정으로 해소했다 |
+| 2 | **D4** — 커버리지가 검증되지 않은 채 통과 처리된다 | **PRE-4** 관문, 특히 (c) "선언·설치가 실제 효력을 갖는지" 확인 | (c)가 `--collect-only`만 수행해 **존재하지 않는 대상으로도 통과한다.** 커버리지 미측정을 실제로 막은 것은 (c)가 아니라 `--cov-fail-under` 임계였다 |
+
+공통 구조: **판정의 상류에 새 규칙을 놓으면서, 그 규칙이 이미 통과하던 다른 기준의 전제를 바꾸는지 검토하지 않았다.** 1은 분류 규칙이 측정 대상을 좁혔고, 2는 관문이 확인 대상을 좁혔다. 둘 다 좁아진 사실이 통과 표기에는 드러나지 않는다.
+
+---
+
+## 관측 기록 — `pytest tests/` 작업 디렉터리 함정 (후속 카드 참고)
+
+워크트리 루트에도 `tests/` 디렉터리가 있는데 그것은 **프론트엔드 vitest 디렉터리**다. 루트에서 백엔드 명령을 돌리면:
+
+```
+$ <interpreter> -m pytest tests/ -q                      (pwd = <worktree>)
+exit=5    no tests ran in 0.01s
+
+$ <interpreter> -m pytest tests/test_bpm.py -k "pinned"  (pwd = <worktree>)
+exit=4    ERROR: file or directory not found: tests/test_bpm.py
+```
+
+파이썬 테스트가 **0건 수집**된다. 이 SPEC의 모든 백엔드 명령은 `pwd = <worktree>/backend`에서만 유효하다. 여기서는 `exit=5` / `exit=4`가 나서 드러났지만, **파이프에 물렸다면 종료 코드가 마지막 명령의 것으로 덮여 통과처럼 보였을 상황이다.** `no tests ran` 문구와 수집 개수가 이를 갈랐다.
+
+같은 함정이 이 카드에서 세 번 다른 얼굴로 나타났다 — 파이프 뒤 종료 코드, 잘못된 `-k` 필터의 0건 수집, 그리고 이 작업 디렉터리 문제. 셋 다 **"0건은 실패가 아니라 미실행"** 이라는 하나의 사실에서 나온다.
+
+---
+
+## 관측 기록 — madmom은 선언 이전부터 설치되어 있었다
+
+M6의 `pip install -r backend/requirements.txt`가 실제로 한 일:
+
+```
+Requirement already satisfied: madmom>=0.16.1 in .../backend/.venv/... (0.16.1)
+Installing collected packages: coverage, pytest-cov
+Successfully installed coverage-7.16.0 pytest-cov-7.1.0
+exit=0
+```
+
+**설치된 것은 `pytest-cov` 7.1.0과 그 의존성 `coverage` 7.16.0 두 건뿐이고, madmom은 `already satisfied`였다.** 즉 madmom은 주석 해제 이전부터 이 환경에 설치되어 동작하고 있었고, 이번 변경은 **선언이 실제 상태를 뒤늦게 따라간 것**이다.
+
+이는 SPEC 1.1.0의 정정("madmom은 이미 동작한다", spec.md 0절 정정 2·3)이 사후에도 맞았음을 보이고, 1.0.0이 제안했던 환경 마커 `; python_version < "3.13"`을 넣었다면 **madmom이 실제로 동작하는 바로 그 인터프리터에서 설치를 건너뛰게 만들었을 것**이라는 판단도 뒷받침한다.
