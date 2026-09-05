@@ -14,6 +14,8 @@ export interface BpmAnalysisResponse {
   beats: number[]
   confidence: number
   file_hash: string
+  /** 사용된 감지 엔진 ("madmom" | "librosa"). 구버전 백엔드 배포 시차를 견디도록 선택 필드 */
+  engine?: string
 }
 
 /**

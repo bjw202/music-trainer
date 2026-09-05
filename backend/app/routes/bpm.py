@@ -92,6 +92,7 @@ async def analyze_bpm(
             beats=result.beats,
             confidence=result.confidence,
             file_hash=result.file_hash,
+            engine=result.engine,
         )
 
     except HTTPException:

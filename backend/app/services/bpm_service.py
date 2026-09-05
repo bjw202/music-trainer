@@ -70,6 +70,7 @@ class BpmResult:
     beats: list[float]
     confidence: float
     file_hash: str
+    engine: str  # 사용된 감지 엔진 ("madmom" | "librosa"). 기본값 없음 — "모름" 전파 방지
 
     def to_dict(self) -> dict[str, Any]:
         """딕셔너리로 변환합니다."""
@@ -78,6 +79,7 @@ class BpmResult:
             "beats": self.beats,
             "confidence": self.confidence,
             "file_hash": self.file_hash,
+            "engine": self.engine,
         }
 
 
@@ -265,6 +267,8 @@ class BpmService:
                 beats=data["beats"],
                 confidence=data["confidence"],
                 file_hash=file_hash,
+                # .get() 금지 — 구 스키마 캐시는 KeyError로 걸러 재분석을 유도한다
+                engine=data["engine"],
             )
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning("Failed to read cache file %s: %s", cache_file, e)
@@ -335,6 +339,7 @@ class BpmService:
                 beats=[round(float(b), 3) for b in beats.tolist()],
                 confidence=round(confidence, 3),
                 file_hash=file_hash,
+                engine=algorithm,
             )
 
             # 캐시 저장

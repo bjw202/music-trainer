@@ -44,11 +44,13 @@ class TestBpmResult:
             beats=[0.5, 1.0, 1.5, 2.0],
             confidence=0.95,
             file_hash="abc123",
+            engine="madmom",
         )
         assert result.bpm == 120.0
         assert result.beats == [0.5, 1.0, 1.5, 2.0]
         assert result.confidence == 0.95
         assert result.file_hash == "abc123"
+        assert result.engine == "madmom"
 
     def test_bpm_result_to_dict(self) -> None:
         """BpmResult를 딕셔너리로 변환할 수 있는지 확인합니다."""
@@ -57,12 +59,31 @@ class TestBpmResult:
             beats=[1.0, 2.0],
             confidence=0.8,
             file_hash="test_hash",
+            engine="librosa",
         )
         d = result.to_dict()
         assert d["bpm"] == 100.0
         assert d["beats"] == [1.0, 2.0]
         assert d["confidence"] == 0.8
         assert d["file_hash"] == "test_hash"
+        assert d["engine"] == "librosa"
+
+    def test_bpm_result_to_dict_includes_engine(self) -> None:
+        """to_dict() 키 집합이 정확히 5개인지 확인합니다 (AC-BPM-003)."""
+        result = BpmResult(
+            bpm=100.0,
+            beats=[1.0, 2.0],
+            confidence=0.8,
+            file_hash="test_hash",
+            engine="madmom",
+        )
+        assert set(result.to_dict().keys()) == {
+            "bpm",
+            "beats",
+            "confidence",
+            "file_hash",
+            "engine",
+        }
 
 
 class TestBpmServiceInit:
@@ -123,6 +144,7 @@ class TestCaching:
             beats=[0.5, 1.0, 1.5],
             confidence=0.9,
             file_hash=file_hash,
+            engine="madmom",
         )
 
         # 캐시 저장
@@ -134,6 +156,7 @@ class TestCaching:
         assert cached.bpm == 120.0
         assert cached.beats == [0.5, 1.0, 1.5]
         assert cached.confidence == 0.9
+        assert cached.engine == "madmom"
 
     def test_cache_file_format(self, service: BpmService, bpm_cache_dir: Path) -> None:
         """캐시 파일이 올바른 JSON 형식인지 확인합니다."""
@@ -143,6 +166,7 @@ class TestCaching:
             beats=[0.0, 0.428, 0.857],
             confidence=0.85,
             file_hash=file_hash,
+            engine="librosa",
         )
 
         service._save_cached_result(result)
@@ -157,6 +181,43 @@ class TestCaching:
         assert data["bpm"] == 140.0
         assert data["beats"] == [0.0, 0.428, 0.857]
         assert data["confidence"] == 0.85
+        assert data["engine"] == "librosa"
+
+    def test_legacy_cache_without_engine_returns_none(
+        self, service: BpmService, bpm_cache_dir: Path
+    ) -> None:
+        """engine 키가 없는 구 스키마 캐시는 None을 반환합니다 (AC-BPM-004)."""
+        file_hash = "legacy_schema_hash"
+        cache_file = bpm_cache_dir / f"{file_hash}.json"
+        cache_file.write_text(
+            json.dumps(
+                {
+                    "bpm": 120.0,
+                    "beats": [0.5, 1.0, 1.5],
+                    "confidence": 0.9,
+                    "file_hash": file_hash,
+                }
+            )
+        )
+
+        assert service._get_cached_result(file_hash) is None
+
+    def test_new_cache_with_engine_roundtrips(self, service: BpmService) -> None:
+        """신 스키마 캐시는 engine 값이 왕복 일치합니다 (AC-BPM-004)."""
+        file_hash = "new_schema_hash"
+        result = BpmResult(
+            bpm=95.0,
+            beats=[0.0, 0.631],
+            confidence=0.77,
+            file_hash=file_hash,
+            engine="madmom",
+        )
+
+        service._save_cached_result(result)
+
+        cached = service._get_cached_result(file_hash)
+        assert cached is not None
+        assert cached.engine == "madmom"
 
 
 class TestMadmomDetection:
@@ -196,6 +257,7 @@ class TestMadmomDetection:
             mock_madmom.assert_not_called()
             assert result.bpm == 110.0
             assert result.confidence == 0.7
+            assert result.engine == "librosa"
 
 
 class TestLibrosaFallback:
@@ -232,6 +294,7 @@ class TestAnalyze:
             beats=[0.46, 0.92, 1.38],
             confidence=0.92,
             file_hash=file_hash,
+            engine="madmom",
         )
         service._save_cached_result(cached_result)
 
@@ -240,6 +303,32 @@ class TestAnalyze:
         assert result.bpm == 130.0
         assert result.beats == [0.46, 0.92, 1.38]
         assert result.confidence == 0.92
+        assert result.engine == "madmom"
+
+    @patch("app.services.bpm_service._MADMOM_AVAILABLE", False)
+    @patch("app.services.bpm_service._LIBROSA_AVAILABLE", True)
+    def test_analyze_sets_engine_librosa(
+        self, service: BpmService, sample_audio_file: Path
+    ) -> None:
+        """librosa 경로로 분석하면 engine이 "librosa"입니다 (AC-BPM-003)."""
+        with patch("app.services.bpm_service._detect_with_librosa") as mock_librosa:
+            mock_librosa.return_value = (100.0, np.array([0.6, 1.2, 1.8]), 0.7)
+
+            result = service.analyze(str(sample_audio_file))
+
+        assert result.engine == "librosa"
+
+    @patch("app.services.bpm_service._MADMOM_AVAILABLE", True)
+    def test_analyze_sets_engine_madmom(
+        self, service: BpmService, sample_audio_file: Path
+    ) -> None:
+        """madmom 경로로 분석하면 engine이 "madmom"입니다 (AC-BPM-003)."""
+        with patch("app.services.bpm_service._detect_with_madmom") as mock_madmom:
+            mock_madmom.return_value = (120.0, np.array([0.5, 1.0, 1.5]), 0.95)
+
+            result = service.analyze(str(sample_audio_file))
+
+        assert result.engine == "madmom"
 
     @patch("app.services.bpm_service._MADMOM_AVAILABLE", False)
     @patch("app.services.bpm_service._LIBROSA_AVAILABLE", False)
