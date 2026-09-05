@@ -1549,3 +1549,41 @@ $ git diff --stat cfd5475..HEAD -- tests/unit/core/MetronomeEngine.test.ts src/c
 ### GAP (미검증으로 남긴 것)
 
 - `ruff check` — `backend/.venv`에 ruff 미설치(`No module named ruff`). 리드 지시에 따라 설치하지 않았다. 이 카드의 범위가 아니며 **미검증**으로 남긴다. 실행하지 못한 것은 통과가 아니다.
+
+---
+
+## run 레인 독립 검증 — AC-BPM-007 (a), AC-BPM-008 사후
+
+### AC-BPM-007 (a) — 두 SHA 모두 PASS
+
+`progress.md`의 base_sha 줄을 acceptance.md가 지정한 정규식으로 실제 파싱해 얻은 값을 썼다.
+
+```
+$ grep -oE '^- base_sha: [0-9a-f]{7,40}$' .moai/specs/SPEC-BPM-003/progress.md | awk '{print $3}'
+4ba10a96e820cb68eb9712e6ca952147db97b739
+
+$ git diff 4ba10a9..HEAD -- backend/app/services/bpm_service.py | grep -cE "^[-+].*(def _calculate_confidence|1\.0 - cv|min\(confidence, 0\.8\))"
+0
+
+$ git diff cfd5475..HEAD -- backend/app/services/bpm_service.py | grep -cE "<같은 패턴>"
+0
+```
+
+두 diff는 각각 202행 / 221행으로 비어 있지 않다 — 즉 이 `0`은 "diff가 비어서 항상 0"이 아니라 **변경 내역 안에 동결 대상 세 지점이 없다**는 뜻이다. 더 강한 기준선인 `cfd5475`(M1 이전)에서도 `0`이므로, base_sha가 M1을 포함하지 않는다는 약점은 실질적으로 해소된다.
+
+### AC-BPM-008 사후 측정 — PASS
+
+```
+elapsed_runs=['18.152', '18.056', '18.161', '18.613', '18.374']
+elapsed_median=18.161
+bpm_runs=['115.4000', '115.4000', '115.4000', '115.4000', '115.4000']
+engine=madmom confidence=0.968 repair={'inserted': 0, 'dropped': 0}
+```
+
+| 항목 | 변경 전 | 변경 후 | 기준 | 판정 |
+|------|--------|--------|------|------|
+| 분석 시간 중앙값 | 18.077s | **18.161s** | ≤ 18.981s (1.05배) | **PASS** (+0.46%) |
+| BPM | 115.4000 | **115.4000** | 차이 ≤ 2.0 | **PASS** (차이 0.0000) |
+| confidence | 0.978 | **0.968** | 0.0 ≤ x ≤ 1.0 | **PASS** |
+
+confidence가 0.978 → 0.968로 낮아진 것은 **예상된 결과이며 실패가 아니다**(spec.md 4.2절). 평활화가 만들어내던 인공적 규칙성이 사라지고 감지 품질이 정직하게 반영된 것이다. 변화폭이 0.010으로 작은 이유는 이 곡에서 국소 보정이 한 건도 발동하지 않았고(`repair={'inserted': 0, 'dropped': 0}`) 감지기 출력 자체가 이미 규칙적이기 때문이다.
