@@ -1424,3 +1424,128 @@ MUTATED min(2.0,...) descending -> 1.0894427190999916
 **고쳐서 통과시키지 않았다.** 뮤테이션은 임시 적용 후 `git checkout --`으로 되돌렸고, 복원 뒤 124행이 `max(0.0, min(1.0, 1.0 - cv))`, 260행이 `min(confidence, 0.8)`임과 `git status`가 깨끗함, 스위트 `147 passed`를 확인했다. acceptance.md AC-BPM-007 (a-2)가 요구한 테스트는 세 건이고 그 세 건의 내용도 문서가 지정한 대로이므로, 네 번째 테스트를 추가하는 것은 지정 범위 밖이다. **사실만 기록하고 리드 판단에 넘긴다.**
 
 정상 입력에서 비트는 단조 증가하므로 이 경로는 실사용에서 발생하지 않는다. 그러나 "발생하지 않으니 괜찮다"는 것은 동결이 강제된다는 뜻이 아니라 **동결의 한 조각이 검증되지 않은 채 남아 있다**는 뜻이다.
+
+---
+
+## run 레인 — 마일스톤에 배정되지 않았던 DoD 항목 3건
+
+Definition of Done에는 있으나 plan.md의 어느 마일스톤에도 배정되지 않아 아무도 실행하지 않은 항목들이다. 계획 감사는 REQ→AC와 AC→REQ 두 축을 검사했고 **AC→마일스톤 축은 검사되지 않았다.** 앞선 결함들이 "실행되지만 아무것도 검증하지 않는" 형태였다면, 이 셋은 반대로 "검증력은 있으나 실행이 배정되지 않은" 형태다.
+
+### PRE-2 — madmom 가용성 판정 (분기 A/B) [P]
+
+`progress.md:35`에 한 줄 언급은 있었으나 DoD가 요구하는 "판정 결과 + 사용 인터프리터 경로" 형태의 기록은 없었다. 정식으로 실행했다.
+
+```
+MADMOM_AVAILABLE = True
+LIBROSA_AVAILABLE = True
+interpreter = /Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python
+module     = /Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1/backend/app/services/bpm_service.py
+```
+
+**분기 A 확정 — PASS.** 로드된 모듈 경로를 함께 남긴다. 어느 트리의 코드를 판정했는지가 확정되지 않으면 판정 자체가 증거가 되지 못한다(SPEC 1.0.0의 네 오판이 이 축에서 나왔다).
+
+### PRE-3 — 기준 오디오 픽스처 [W]
+
+`grep "PRE-3" progress.md` → 매치 0건. 한 번도 실행되지 않았다. 이 카드가 픽스처를 계속 사용해 왔으므로 실질적으로는 존재했으나, **"쓰고 있으니 있다"는 확인이 아니다.**
+
+```
+-rw-r--r--@ 1 byunjungwon  staff  6005537 Sep  5 20:56 music-source/Deep Purple  Smoke On the Water Official Music Video.mp3
+music-source/Deep Purple  Smoke On the Water Official Music Video.mp3
+tracked_exit=0
+```
+
+**PASS.**
+
+### AC-BPM-006-OPT — Hotel California (선택)
+
+`grep -i "hotel|006-OPT" progress.md` → 매치 0건. DoD는 "측정 **또는 '미수행' 기록**"을 요구하므로, 아무것도 적히지 않은 상태는 미수행이 아니라 **미기록**이다. 둘은 다르다 — 전자는 판단이고 후자는 누락이다.
+
+```
+$ ls music-source/
+Deep Purple  Smoke On the Water Official Music Video.mp3
+$ git ls-files | grep -i hotel; echo "hotel_exit=$?"
+hotel_exit=1
+```
+
+**미수행 — 실패가 아니다.** 운영자가 Hotel California 오디오를 제공하지 않았다. acceptance.md가 "파일이 제공되지 않으면 미수행으로 기록하며 미수행은 실패가 아니다"로 명시한 경우에 해당한다. ×2 오검출 검증은 본 SPEC의 범위가 아니라 칸반 카드 `t10` 소관이며(spec.md 11절), 이 기준을 ×2 검증으로 확대 해석하지 않는다.
+
+---
+
+## run 레인 독립 검증 — M5 / M6
+
+담당 에이전트 보고를 재실행으로 확인한 결과다. 인터프리터·작업 디렉터리 위와 동일.
+
+### AC-BPM-001 [W] — PASS
+
+```
+$ grep -rn "_smooth_beats" backend/; echo "exit=$?"
+exit=1
+
+$ grep -rnP '(\w+)\[\s*i\s*\+\s*1\s*\]\s*=\s*\1\[\s*i\s*\]' backend/app/services/bpm_service.py; echo "exit=$?"
+exit=1
+```
+
+두 검사 모두 출력이 없고 `exit=1`이다. `-P`(PCRE)로 실행했으며 `exit=2`(검사 불발)는 나오지 않았다.
+
+### AC-BPM-009 [W] — PASS
+
+```
+$ grep -n "^madmom" backend/requirements.txt         → 27:madmom>=0.16.1    madmom_exit=0
+$ grep -n 'python_version' backend/requirements.txt  → (출력 없음)         marker_exit=1
+$ grep -n "3.13 비호환|Cython 빌드 실패" …           → (출력 없음)         stale_exit=1
+$ grep -n "^pytest-cov" backend/requirements.txt     → 14:pytest-cov>=5.0   cov_exit=0
+```
+
+### AC-BPM-010 커버리지 — acceptance.md 문언 그대로는 측정되지 않는다
+
+문언 그대로 (`--cov=app/services/bpm_service`):
+
+```
+literal_real_exit=1
+FAIL Required test coverage of 85% not reached. Total coverage: 0.00%
+147 passed
+```
+
+모듈 경로 표기를 고친 형태 (`--cov=app.services.bpm_service`), 같은 테스트 실행:
+
+```
+fixed_exit=0
+app/services/bpm_service.py     159     12    92%   44-45, 57-58, 106, 110, 114, 158, 172-173, 223, 363
+```
+
+0.00%는 "커버리지가 없다"가 아니라 **"재지 못했다"** 는 뜻이다. 슬래시 표기가 파일에도 패키지에도 매칭되지 않아 측정 대상이 비었고, 같은 실행을 점 표기로 재면 92%가 나온다. **임계 `--cov-fail-under=85`는 손대지 않았다.** 목표 85%를 92%로 충족한다.
+
+이 명령은 실패 쪽으로 떨어지므로 조용히 통과하지는 않는다 — 이 카드에서 반복된 "구성상 통과" 양식의 반대편 사례다. 다만 문언 그대로는 영원히 통과하지 못하므로 acceptance.md의 정정이 필요하며, 문언 정정은 sync 단계 소관이다.
+
+**파이프 함정 관측.** 같은 명령을 `| tail -8`로 넘겼을 때 `literal_exit=0`이 찍혔다. 파이프의 종료 코드는 마지막 명령의 것이므로, 파이프로 본 종료 코드는 pytest의 판정이 아니다. 위 값은 파이프 없이 다시 얻은 것이다.
+
+### AC-BPM-010 프론트엔드 — FAIL (이 카드와 무관한 기존 실패)
+
+```
+$ npx tsc --noEmit; echo "tsc_exit=$?"      → tsc_exit=0
+$ npm test -- --run; echo "npm_exit=$?"     → npm_exit=1
+
+ FAIL tests/unit/core/MetronomeEngine.test.ts > MetronomeEngine > Lookahead Scheduler
+      > 다운비트는 880Hz, 업비트는 440Hz로 재생해야 한다
+ Test Files  1 failed | 18 passed (19)
+      Tests  1 failed | 259 passed (260)
+```
+
+인과 배제 근거 (추정이 아니라 측정):
+
+```
+$ git diff --stat cfd5475..HEAD -- src/ tests/
+ src/api/bpm.ts | 2 ++
+ 1 file changed, 2 insertions(+)
+
+$ git diff --stat cfd5475..HEAD -- tests/unit/core/MetronomeEngine.test.ts src/core/MetronomeEngine.ts
+ (출력 없음 — 두 파일 모두 브랜치 시작점과 동일)
+```
+
+이 카드가 프론트엔드에서 바꾼 것은 `src/api/bpm.ts`의 2행(타입 필드 `engine?: string` + 주석)뿐이고, 실패한 테스트와 그 대상 소스는 브랜치 시작점 대비 변경이 없다. 타입 선언은 런타임에 지워지므로 인과가 성립할 수 없다.
+
+**그럼에도 통과로 적지 않는다.** AC-BPM-010의 프론트엔드 기준은 "두 단계 모두 `exit=0`"이고 실측은 `npm_exit=1`이다. 무관함이 곧 충족은 아니므로 **FAIL로 기록하고 리드 판단에 넘긴다.** 기준을 "이 카드와 무관한 실패는 제외한다"로 넓히지 않는다.
+
+### GAP (미검증으로 남긴 것)
+
+- `ruff check` — `backend/.venv`에 ruff 미설치(`No module named ruff`). 리드 지시에 따라 설치하지 않았다. 이 카드의 범위가 아니며 **미검증**으로 남긴다. 실행하지 못한 것은 통과가 아니다.
