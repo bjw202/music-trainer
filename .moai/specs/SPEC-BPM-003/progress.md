@@ -800,3 +800,138 @@ FAILED tests/test_beatgrid_drift.py::test_ported_matches_original_golden
 `_smooth_beats` 정의(201행)는 그대로 있다(M5). `requirements.txt`(M6),
 `scripts/measure_beatgrid_drift.py`, `backend/tests/test_beatgrid_drift.py`, spec/plan/acceptance
 본문은 손대지 않았다. M4가 건드린 파일은 `backend/tests/test_bpm.py` 하나와 이 `progress.md`다.
+
+---
+
+## 리드 결정 — 골든 대조 방식
+
+M4 완료 시점에 남아 있던 유일한 실패
+(`tests/test_beatgrid_drift.py::test_ported_matches_original_golden`, `assert 0.0 == 360.0 ± 0.5`)를
+리드 승인 아래 **실오디오 재실행 방식에서 고정 배열 대조 방식으로 전환**해 해소했다.
+
+### (a) acceptance.md AC-BPM-005 (g) 문면과 달라진 점
+
+AC-BPM-005 (g)는 골든 대조를 "기준 픽스처 오디오에 대해 포팅본을 실행해 원본 값을 재현"하는
+것으로 적었다. 실제 구현은 **오디오를 실행하지 않는다.** 대신 원본 실행의 *입력*이었던 두 배열을
+픽스처로 고정하고, 순수 함수 `measure_legacy_index_diff` 에만 대조를 건다.
+
+| 항목 | AC 문면 | 실제 |
+|---|---|---|
+| 입력 | 기준 오디오 파일 | 고정 배열 픽스처 2종 (`detector`, `emitted_before`) |
+| 실행 경로 | `mbd.main(... --legacy-index-diff)` → 라이브 서비스 | `mbd.measure_legacy_index_diff(emitted, detector)` |
+| 의존성 | madmom + 오디오 파일 + `BpmService` | 없음 (JSON 두 개) |
+| 골든 값·허용 오차 | 721 / 360.0±0.5 / 240.0±0.5 | **동일 (변경 없음)** |
+
+골든 값과 허용 오차는 한 자리도 조정하지 않았다.
+
+### (b) 왜 바꾸었나
+
+원 테스트는 골든 픽스처를 **라이브 서비스 재실행 결과**와 비교했다. M2가
+`_smooth_beats` 호출을 `_repair_beats` 로 교체하면서 방출 그리드가 감지기 출력 자체가 되었고,
+인덱스 정렬 차분은 구조적으로 0이 된다. 즉 이 기준은 M2 이후 **원리적으로 만족될 수 없다** —
+360ms를 다시 만들려면 삭제 대상인 전역 재구성을 되살려야 하기 때문이다.
+
+한편 이 테스트가 답하려던 질문 — "포팅이 측정값을 바꾸었는가" — 은 M3에서 이미 답이 났다
+(원본과 포팅본의 차이 0.000ms, 위 M3 절 기록). 남은 문제는 그 답을 **재현 가능한 형태로
+보존**하는 것이었고, 그 입력은 변경 전 코드에만 존재하므로 배열로 박제하는 것 외에 방법이 없다.
+
+시점이 중요했다: `_smooth_beats` 는 M5에서 삭제된다. 캡처는 그 전에만 가능하다.
+
+### (c) 캡처 — 반올림 처리
+
+`BpmService.analyze` 는 `beats=[round(float(b), 3) for b in beats.tolist()]` 로 방출한다(428행).
+드리프트 스크립트의 `collect_drift_input` 은 감지기 배열을 반올림하지 않는다(247행).
+그래서 픽스처도 **비대칭**으로 캡처했다.
+
+- `detector` — `RNNBeatProcessor()` → `DBNBeatTrackingProcessor(fps=100)` 원출력, 반올림 없음
+- `emitted_before` — `_smooth_beats(detector_raw)` 에 `round(b, 3)` 적용
+
+이 조합이 맞다는 것은 추정이 아니라 **재현으로 확인**했다. 캡처 직후 두 배열에
+`measure_legacy_index_diff` 를 걸어 얻은 값:
+
+```
+{"max_drift_ms": 359.9999999999852, "last_beat_drift_ms": 240.0000000000091,
+ "mean_drift_ms": 213.68932038834927, "beat_count": 721, ...}
+```
+
+M3에 기록된 원본 1회 실행 값(721 / 360.0 / 240.0)과 허용 오차 안에서 일치한다. 반올림을
+다르게 잡았다면 이 값이 나오지 않는다.
+
+신규 픽스처: `backend/tests/fixtures/drift_golden_arrays_smoke_on_the_water.json` (721×2 배열 +
+프로버넌스: 명령·인터프리터 경로·`sys.version`·HEAD·UTC 시각·M5 이전 캡처임을 명시). git 추적 확인:
+
+```
+$ git ls-files --error-unmatch backend/tests/fixtures/drift_golden_arrays_smoke_on_the_water.json
+backend/tests/fixtures/drift_golden_arrays_smoke_on_the_water.json
+tracked_exit=0
+```
+
+기존 `drift_baseline_smoke_on_the_water.json` 은 원본 실행의 프로버넌스 기록으로 **그대로 둔다**
+(삭제·수정 없음). 새 테스트는 두 픽스처를 함께 읽어 `fixture_audio` 가 같은 곡인지도 확인한다.
+
+### (d) 새 테스트 실행 결과
+
+```
+$ cd backend && <interp> -m pytest tests/test_beatgrid_drift.py -v
+collected 17 items
+... (16건 생략, 전건 PASSED)
+tests/test_beatgrid_drift.py::test_ported_matches_original_golden_from_arrays PASSED [100%]
+============================== 17 passed in 0.02s ==============================
+
+$ cd backend && <interp> -m pytest tests/ -q
+145 passed in 0.43s
+```
+
+144 passed + 기존 실패 1건 해소 = **145 passed, 0 failed.** 파일 전체 실행 시간은 madmom 추론
+~37s에서 **0.02s** 로 내려갔다.
+
+### (e) 독립성 증명 — madmom 차단 실행
+
+"madmom·오디오에 더 이상 의존하지 않는다"는 주장을 가정하지 않고 실측했다. `sys.meta_path` 에
+`madmom` 및 하위 모듈에 대해 `ImportError` 를 던지는 finder를 심은 뒤 같은 테스트를 실행:
+
+```
+[block-check] madmom import raises: madmom is blocked for this run: madmom
+collected 1 item
+tests/test_beatgrid_drift.py::test_ported_matches_original_golden_from_arrays PASSED [100%]
+============================== 1 passed in 0.01s ===============================
+```
+
+madmom이 import 불가능한 상태에서도 통과한다. 측정 소요는 0.005s 미만이다.
+
+### (f) 통과가 공허하지 않다는 증명 — 변이 검사
+
+통과 자체는 증거가 아니므로, `measure_legacy_index_diff` 를 변이시킨 사본으로 갈아 끼우고 테스트가
+**실패하는지** 확인했다. 네 변이 전부 잡혔다(생존자 0):
+
+```
+baseline (unmutated): PASSED
+mut_no_ms_scale        -> test FAILED (killed)     # 초→ms 환산 누락
+mut_signed             -> test FAILED (killed)     # 절대값 대신 부호 있는 차분
+mut_off_by_one         -> test FAILED (killed)     # 인덱스 정렬 1비트 밀림
+mut_compare_to_self    -> test FAILED (killed)     # emitted 를 자기 자신과 비교
+
+survivors: none — every mutant was killed
+mutation_exit=0
+```
+
+특히 `mut_compare_to_self` 는 "아무것도 비교하지 않으면서 통과하는" 전형적 공허 통과 형태인데,
+이 테스트는 그 상태에서 실패한다. 즉 통과는 계산이 맞아서 나온 것이다.
+
+변이 검사 하네스와 캡처 하네스는 실행 후 삭제했다(커밋하지 않음).
+
+### (g) 남은 위험
+
+- 배열 픽스처는 내가 캡처했다. 캡처가 원본과 같은 방식으로 틀렸다면 대조도 같이 틀린다. 이를
+  막는 것은 **골든 값의 출처가 다르다는 사실**이다 — 360.0/240.0 은 M3에서 *원본 스크립트 자신의
+  실행*으로 기록된 값이고, 내 캡처는 그 값을 독립적으로 재현했다. 두 경로가 같은 오류를 공유할
+  가능성은 남지만 관측된 증거로는 배제된다.
+- 이 테스트는 이제 오디오 디코딩·madmom 추론·`BpmService` 조립 경로를 밟지 않는다. 그 경로의
+  회귀는 다른 테스트가 잡아야 하며, 이 테스트가 잡아 준다고 주장하지 않는다.
+
+### 범위 준수
+
+`_smooth_beats` 정의(`backend/app/services/bpm_service.py:201`)는 **그대로 있다 — M5는 실행하지
+않았다.** `requirements.txt`(M6), `scripts/measure_beatgrid_drift.py`(순수 함수가 이미 노출되어
+있어 수정이 필요 없었다), spec/plan/acceptance 본문은 손대지 않았다. 이 작업이 건드린 파일은
+`backend/tests/test_beatgrid_drift.py`, 신규 픽스처 1개, 이 `progress.md` 셋이다.

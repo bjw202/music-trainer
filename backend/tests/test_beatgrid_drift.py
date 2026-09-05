@@ -5,10 +5,11 @@ SPEC-BPM-003 REQ-BPM-005 / AC-BPM-005 / plan.md M3.
 케이스 구성 (plan.md M3):
   DDD 코어 (원본 동작의 이식 검증) : 1, 2, 5, 6, 7
   TDD 신규 CLI 계약               : 3, 4, 8, 9
-  PRESERVE 골든 대조              : test_ported_matches_original_golden
+  PRESERVE 골든 대조              : test_ported_matches_original_golden_from_arrays
 
 DDD/TDD 케이스는 합성 입력만 사용하므로 madmom·오디오 없이 결정론적으로 돈다.
-골든 대조 테스트만 실제 오디오와 madmom을 필요로 한다.
+골든 대조 테스트도 M5 이전에 캡처해 둔 고정 배열 픽스처를 쓰므로 madmom·오디오를
+필요로 하지 않는다 (아래 PRESERVE 절 참고).
 """
 
 from __future__ import annotations
@@ -374,31 +375,46 @@ def test_case7_dropped_beat_reported_without_affecting_drift() -> None:
 
 
 # ---------------------------------------------------------------------------
-# PRESERVE — 골든 픽스처 대조 (madmom + 실제 오디오 필요)
+# PRESERVE — 골든 픽스처 대조 (고정 배열, madmom·오디오 불필요)
 # ---------------------------------------------------------------------------
 
+# 원본 1회 실행의 측정값과 허용 오차 (M3에서 기록, 변경 금지).
 _GOLDEN_PATH = Path(__file__).resolve().parent / "fixtures" / "drift_baseline_smoke_on_the_water.json"
 
+# 그 측정의 입력이 된 두 배열 (M5 직전 캡처).
+_GOLDEN_ARRAYS_PATH = (
+    Path(__file__).resolve().parent / "fixtures" / "drift_golden_arrays_smoke_on_the_water.json"
+)
 
-def test_ported_matches_original_golden() -> None:
-    """포팅본이 원본 계산 방식으로 골든 값을 재현하는지 판정한다.
+
+def test_ported_matches_original_golden_from_arrays() -> None:
+    """포팅본이 원본 계산 방식으로 골든 값을 재현하는지 고정 배열로 판정한다.
+
+    입력은 M5(`_smooth_beats` 삭제) 직전에 1회 캡처한 두 배열이다.
+
+      detector       — 감지기 원본 출력 (madmom RNN + DBN, 비반올림)
+      emitted_before — 변경 전 서비스가 실제로 방출하던 그리드
+                       (`_smooth_beats` 적용 후 소수점 3자리 반올림)
+
+    측정 대상은 순수 함수 `measure_legacy_index_diff` 하나이며, 배열이 고정되어
+    있으므로 madmom·오디오 파일·서비스 코드 어느 것에도 의존하지 않는다. 이 테스트가
+    답하는 질문은 "이식이 측정값을 바꾸었는가"이고, 그 질문의 입력은 변경 전 코드에만
+    존재했으므로 배열로 박제하는 것 말고는 보존할 방법이 없다.
 
     허용 오차는 골든 픽스처에 미리 못 박혀 있다. 초과하면 실패이며,
     "원인을 적으면 통과" 조항은 없다.
     """
     golden = json.loads(_GOLDEN_PATH.read_text())
-    audio = _REPO_ROOT / golden["fixture_audio"]
-    if not audio.is_file():
-        pytest.fail(f"기준 픽스처 오디오가 없다: {audio}")
+    arrays = json.loads(_GOLDEN_ARRAYS_PATH.read_text())
 
-    out, err = io.StringIO(), io.StringIO()
-    with redirect_stdout(out), redirect_stderr(err):
-        code = mbd.main([str(audio), "--json", "--no-cache", "--legacy-index-diff"])
+    # 두 픽스처가 같은 오디오를 가리키는지 먼저 못 박는다.
+    assert arrays["fixture_audio"] == golden["fixture_audio"]
 
-    assert code in (mbd.EXIT_OK, mbd.EXIT_THRESHOLD_EXCEEDED), (
-        f"측정이 실패했다 (exit={code}): {err.getvalue()}"
-    )
-    stats = json.loads(out.getvalue())
+    emitted = arrays["emitted_before"]
+    detector = arrays["detector"]
+    assert len(emitted) == len(detector) == arrays["beat_count"]
+
+    stats = mbd.measure_legacy_index_diff(emitted, detector)
     tol = golden["tolerances"]
 
     assert stats["beat_count"] == golden["beat_count"]
