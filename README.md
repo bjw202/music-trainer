@@ -70,7 +70,8 @@ cd guitar-mp3-trainer-v2
   - SoundTouch 통합으로 속도/피치 동기화
 - **BPM 감지 및 메트로놈**: 자동 템포 분석 및 클릭 재생
   - 오디오 로드 시 자동 BPM 분석 (madmom/librosa)
-  - 감지된 BPM 및 신뢰도 점수 표시
+  - 감지된 BPM, 신뢰도 점수, 사용된 감지 엔진(`engine`) 표시
+  - 감지기가 찾은 비트 위치를 그대로 사용 (전역 재구성 없이, 간격이 튄 지점만 국소 보정)
   - 메트로놈 클릭 재생 (다운비트/업비트 구분)
   - 속도 변경, Seek, A-B 루프와 자동 동기화
   - 독립 메트로놈 볼륨 제어
@@ -95,10 +96,10 @@ cd guitar-mp3-trainer-v2
 - **ffmpeg** - Audio processing
 - **Demucs 4.x** - AI source separation (htdemucs model)
 - **PyTorch (CPU)** - ML runtime for Demucs
-- **madmom 0.17.0** - BPM detection and beat tracking
-- **librosa 0.10.2** - Audio analysis (fallback BPM detection)
+- **madmom >=0.16.1** - BPM detection and beat tracking
+- **librosa >=0.10.0** - Audio analysis (fallback BPM detection)
 - **Uvicorn** - ASGI server
-- **pytest** - Testing framework (65 tests)
+- **pytest** - Testing framework (148 tests)
 
 ## Architecture
 
@@ -388,7 +389,7 @@ graph LR
 │   │   │   └── cleanup_service.py      # Temporary file cleanup
 │   │   ├── models/           # Pydantic schemas
 │   │   └── utils/            # Utilities
-│   ├── tests/                # Backend tests (65 tests)
+│   ├── tests/                # Backend tests (148 tests)
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── tests/                      # Frontend tests

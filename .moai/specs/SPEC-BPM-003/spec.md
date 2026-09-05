@@ -2,10 +2,10 @@
 id: SPEC-BPM-003
 title: 비트그리드 전역 재구성 제거 및 감지기 출력 신뢰
 version: 1.3.0
-status: draft
+status: completed
 priority: P0
 created: 2026-09-05
-updated: 2026-09-05
+updated: 2026-09-06
 author: jw
 phase: "v0.5.0 target"
 module: backend/app/services/bpm_service.py
@@ -22,10 +22,10 @@ related_specs:
 | 항목 | 내용 |
 |------|------|
 | SPEC ID | SPEC-BPM-003 |
-| 상태 | draft |
+| 상태 | completed |
 | 버전 | 1.3.0 (계획 감사 iter-2 신규 지적 반영 — 0절 참조) |
 | 작성일 | 2026-09-05 |
-| 최종 수정 | 2026-09-05 |
+| 최종 수정 | 2026-09-06 (sync 단계) |
 | 우선순위 | P0 (High) |
 | Tier | M (spec.md + plan.md + acceptance.md + progress.md) |
 | 선행 SPEC | SPEC-BPM-001 (Completed), SPEC-BPM-002 (Completed) |

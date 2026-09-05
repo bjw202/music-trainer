@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+
+- **비트그리드 전역 재구성 `_smooth_beats` 제거 (SPEC-BPM-003)**: 감지기가 내놓은 비트 배열 전체를 평균 간격으로 다시 깔던 전역 재구성을 삭제했다
+  - 이 함수는 곡 전체를 하나의 고정 템포로 가정하고 비트를 재배치했기 때문에, 템포가 실제로 흔들리는 구간에서 감지 결과를 지우고 인공적인 격자를 씌웠다
+  - 코드베이스 전수 검색으로 부재 확인: `grep -rn "_smooth_beats"` 매치 0건
+  - 이 함수를 대상으로 하던 특성화 테스트 CT-1도 함께 삭제
+
+### Added
+
+- **`engine` 필드 노출 (SPEC-BPM-003)**: 어느 감지 엔진(madmom / librosa)이 결과를 냈는지 응답에 실어 4계층으로 전파
+  - `backend/app/services/bpm_service.py` (분석 결과) → `backend/app/models/schemas.py` (Pydantic 스키마) → `backend/app/routes/bpm.py` (API 응답) → `src/api/bpm.ts` (프론트엔드 타입)
+  - 이전에는 폴백이 발동했는지를 응답만 보고 알 수 없었다
+- **비트그리드 드리프트 측정 스크립트 `scripts/measure_beatgrid_drift.py`**: 감지기 원본 비트와 최종 출력 비트의 시간 차이를 재는 도구를 git 추적 자산으로 등록
+  - `--json`(8키 계약) / `--threshold-ms`(임계 초과 시 exit 1) CLI 계약
+  - 국소 보정으로 삽입된 비트는 `inserted_count`로 분리 집계해 드리프트 통계를 오염시키지 않는다
+  - 골든 배열 픽스처 대조 테스트 포함
+- **`pytest-cov>=5.0` 의존성 선언**: 커버리지 측정 수단이 선언되어 있지 않아 85% 목표를 잴 방법 자체가 없던 상태를 해소
+
+### Changed
+
+- **전역 재구성을 국소 보정 `_repair_beats`로 대체 (SPEC-BPM-003)**: 비트 배열 전체를 다시 깔지 않고, 간격이 튄 지점만 국소적으로 보정한다
+  - 감지기 출력을 기본적으로 신뢰하고, 명백한 누락·중복만 손댄다
+  - 보정 건수(`inserted` / `dropped`)를 반환해 측정 스크립트가 자체 분류 결과와 대조할 수 있다
+- **구 스키마 캐시 안전 열화**: `engine` 필드가 없는 이전 버전 캐시를 만나도 예외 없이 동작한다 (`data.get("engine")` 사용, 캐시 무효화 불필요)
+- **`backend/requirements.txt`의 madmom 선언 주석 해제**: `madmom>=0.16.1`을 환경 마커 없이 선언
+  - 기존 주석 "Python 3.13 비호환 (Cython 빌드 실패)"은 사실과 달랐다. madmom은 `bpm_service.py`의 3.13/NumPy 2.x 호환 shim을 거쳐 이 환경에서 이미 정상 동작하고 있었으며, 이번 변경은 **선언이 실제 상태를 뒤늦게 따라간 것**이다
+
+### Fixed
+
+- **비트그리드 드리프트 360.000 ms → 0.000 ms (SPEC-BPM-003)**: 기준 픽스처(Deep Purple - Smoke On the Water) 측정 기준
+  - 전역 재구성이 만들던 최대 360 ms의 비트 위치 이탈이 사라졌다. 메트로놈 클릭이 실제 연주 비트에서 그만큼 밀려 있던 문제가 해소된다
+
+### Technical Details
+
+- **회귀 검증**: 백엔드 테스트 148건 통과, `bpm_service.py` 커버리지 92.45% (159 stmts / 12 miss / 92%, 임계 85%)
+- **성능**: 분석 시간 중앙값 +0.46% (기준 ≤ 1.05배) — 회귀 없음
+- **BPM 값**: 115.4 유지 (변화 없음)
+- **confidence 0.978 → 0.968**: 의도된 하락이다. 평활화가 만들어내던 인공적 규칙성이 사라지면서 감지 품질이 정직하게 반영된 결과이며, 회귀가 아니다
+
 ## [0.4.0] - 2026-02-17
 
 ### Added

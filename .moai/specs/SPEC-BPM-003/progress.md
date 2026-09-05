@@ -1,7 +1,7 @@
 ---
 id: SPEC-BPM-003
-status: in-progress
-updated: 2026-09-05
+status: completed
+updated: 2026-09-06
 ---
 
 # SPEC-BPM-003 진행 기록
@@ -1724,3 +1724,116 @@ exit=0
 **설치된 것은 `pytest-cov` 7.1.0과 그 의존성 `coverage` 7.16.0 두 건뿐이고, madmom은 `already satisfied`였다.** 즉 madmom은 주석 해제 이전부터 이 환경에 설치되어 동작하고 있었고, 이번 변경은 **선언이 실제 상태를 뒤늦게 따라간 것**이다.
 
 이는 SPEC 1.1.0의 정정("madmom은 이미 동작한다", spec.md 0절 정정 2·3)이 사후에도 맞았음을 보이고, 1.0.0이 제안했던 환경 마커 `; python_version < "3.13"`을 넣었다면 **madmom이 실제로 동작하는 바로 그 인터프리터에서 설치를 건너뛰게 만들었을 것**이라는 판단도 뒷받침한다.
+
+---
+
+## sync 단계
+
+담당: manager-docs · 상태: 완료 · 일자: 2026-09-06
+
+브랜치 `WT-remove-smooth-beats`, 워크트리 `.claude/worktrees/t1`, 착수 HEAD `28d3f9d`.
+
+**이 단계는 문서만 고쳤다. 구현 코드(`backend/app/`, `src/`, `backend/tests/`)는 한 줄도 건드리지 않았다.**
+
+### 실행 위치 확인 (쓰기 이전)
+
+```
+$ git rev-parse --show-toplevel
+/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1
+$ git branch --show-current
+WT-remove-smooth-beats
+$ git rev-parse --short HEAD
+28d3f9d
+```
+
+셋 다 배정된 값과 일치하므로 진행했다.
+
+### 정정한 것 — run 단계에서 이월된 4건
+
+| # | 문서·위치 | 이전 | 이후 |
+|---|----------|------|------|
+| 1 | `acceptance.md` AC-BPM-007 (a-2) 표, 기대 문구, Definition of Done | pinned 테스트 **3건** | **4건**. `test_confidence_upper_clamp_pinned` 행 추가 + 추가 근거(뮤테이션 생존자) 기술 |
+| 2 | `acceptance.md` AC-BPM-010 검증 명령 | `--cov=app/services/bpm_service` (슬래시) | `--cov=app.services.bpm_service` (점). 두 표기 대조표와 "0.00% = 재지 못함" 기술 추가 |
+| 3 | `acceptance.md` PRE-4 (c) | `--collect-only` (존재하지 않는 대상으로도 통과) | 실측정 + `TOTAL` 행 존재 + `0.00%` 부재 3중 단언. 세 대상 대조로 판정력 실측 확인 |
+| 4 | `acceptance.md` AC-BPM-010 프론트엔드 | 범위 경계 기록 없음 | **FAIL 판정 유지** + `main` 재현 + `t2`·`t4` 이관 기록. 기준을 넓혀 면제하지 않았다 |
+
+`acceptance.md`는 `version: 1.4.0`으로 올리고 헤더에 개정 노트를 넣었다.
+
+`spec.md` / `plan.md`는 **본문을 고치지 않았다.** 위 4건이 두 문서의 어떤 진술과도 충돌하지 않음을 확인한 근거:
+
+```
+$ grep -n "커버리지\|--cov\|test_confidence\|테스트 3건" spec.md plan.md
+→ 슬래시 표기 `--cov=app/services/...` 리터럴 0건, pinned 3건 문언 0건
+```
+
+두 문서는 frontmatter만 전이했다.
+
+### 3번을 쓰다가 같은 결함을 한 번 더 만든 기록
+
+PRE-4 (c) 재작성의 **첫 초안**은 `--cov-fail-under` 없이 실측정만 돌리고 `Total coverage: 0.00%` 부재를 단언하는 형태였다. 실행해 확인한 결과:
+
+```
+$ ... -m pytest tests/test_bpm.py -q --cov=app/services/bpm_service --cov-report=term
+slash_exit=0
+zero_coverage_match=1        ← "0.00% 없음" = 통과
+```
+
+**임계 인자가 없으면 coverage 가 `Total coverage:` 행 자체를 출력하지 않으므로**, 깨진 슬래시 표기에서도 그 문자열이 없어 검사가 통과했다. 즉 첫 초안 역시 고치려던 결함(존재하지 않는 대상을 걸러내지 못함)을 그대로 물려받았다. 위 「결함을 고치려고 만든 장치가 같은 결함을 가진 사례」의 세 번째 사례다.
+
+최종 형태는 임계 인자를 판정 장치로 되살리고 `TOTAL` 행 존재를 추가로 단언했으며, 세 대상 대조로 판정력을 확인했다:
+
+| `--cov` 대상 | `exit` | `total_row` | `Total coverage:` | 판정 |
+|-------------|--------|-------------|-------------------|------|
+| `app.services.bpm_service` | `0` | `0` | `92.45%` | 통과 |
+| `app/services/bpm_service` | `1` | `1` | `0.00%` | 실패 |
+| `totally/nonexistent/target` | `1` | `1` | `0.00%` | 실패 |
+
+### 동기화한 문서
+
+| 문서 | 내용 |
+|------|------|
+| `CHANGELOG.md` | `[Unreleased]` 절 신설. Removed(`_smooth_beats`) / Added(`engine` 4계층·측정 스크립트·`pytest-cov`) / Changed(`_repair_beats`·구 캐시 열화·madmom 선언) / Fixed(드리프트 360→0 ms) / Technical Details(수치) |
+| `README.md` | BPM 기능 설명에 `engine` 표시와 국소 보정 명기, `madmom 0.17.0`→`>=0.16.1`·`librosa 0.10.2`→`>=0.10.0` 정정(`backend/requirements.txt` 대조), 백엔드 테스트 수 `65`→`148` 2곳 |
+| `.moai/reports/sync-report-SPEC-BPM-003.md` | sync 보고서 신규 |
+
+### frontmatter 전이
+
+| 문서 | `status` | `updated` |
+|------|---------|-----------|
+| `spec.md` | `draft` → `completed` | `2026-09-06` |
+| `plan.md` | `draft` → `completed` | `2026-09-06` |
+| `acceptance.md` | `draft` → `completed` | `2026-09-06` (+ `version: 1.3.0` → `1.4.0`) |
+| `progress.md` | `in-progress` → `completed` | `2026-09-06` |
+
+`spec.md` 헤더 표의 `| 상태 |` 행도 frontmatter를 따라 `completed`로 맞췄다.
+
+### 회귀 확인 (코드 무변경 가드)
+
+```
+$ pwd
+/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1/backend
+$ <interpreter> -m pytest tests/ -q --no-header -p no:warnings
+PYTEST_EXIT=0
+148 passed in 0.44s
+```
+
+수집 개수 `148`을 직접 읽어 확인했다. `0`도 `no tests ran`도 `exit=5/4/2`도 아니다. 파이프에 물리지 않고 파일로 받아 종료 코드를 그대로 관측했다.
+
+커버리지도 재확인했다:
+
+```
+$ <interpreter> -m pytest tests/test_bpm.py -q --cov=app.services.bpm_service --cov-report=term --cov-fail-under=85
+exit=0
+TOTAL                           159     12    92%
+Required test coverage of 85% reached. Total coverage: 92.45%
+```
+
+### 이월되는 GAP — 변경 없이 그대로 유지
+
+- **`ruff check` 미수행 (GAP).** `backend/.venv`에도 PATH에도 `ruff`가 없다(`No module named ruff`). 리드 지시대로 설치하지 않았다. **린트는 수행되지 않았으며, 이는 통과가 아니라 미검증이다.** 위 419행·1357절·1551행의 기록을 그대로 둔다.
+- **AC-BPM-010 프론트엔드 FAIL.** `npm test -- --run` → `exit=1`, `Tests 1 failed | 259 passed (260)`. `main`에서도 동일 실패가 재현되어 선행 결함으로 확인되었으나 **판정은 FAIL로 남긴다.** 후속은 카드 `t2`(스템 메트로놈 배선)·`t4`(다운비트 880Hz 활성화) 소관이다.
+- **프론트엔드 회귀는 이 단계에서 재실행하지 않았다.** `node_modules`가 필요한 그룹 P 명령이며, 이 단계는 코드를 바꾸지 않았으므로 백엔드 회귀 가드만 돌렸다. 위 수치는 run 단계와 리드 재현의 기록을 인용한 것이다.
+
+### 이 단계에서 인용한 값의 출처
+
+드리프트 360.000 → 0.000 ms, BPM 115.4 불변, confidence 0.978 → 0.968, 성능 +0.46%, `_smooth_beats` 0건은 모두 **리드가 독립 재현한 값**이며 이 단계에서 다시 계산하지 않았다. 백엔드 148 passed와 커버리지 92.45%는 이 단계에서 직접 실행해 관측했다.

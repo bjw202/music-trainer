@@ -1,11 +1,11 @@
 ---
 id: SPEC-BPM-003
 title: 비트그리드 전역 재구성 제거 및 감지기 출력 신뢰 — 수용 기준
-version: 1.3.0
-status: draft
+version: 1.4.0
+status: completed
 priority: P0
 created: 2026-09-05
-updated: 2026-09-05
+updated: 2026-09-06
 author: jw
 phase: "v0.5.0 target"
 module: backend/app/services/bpm_service.py
@@ -25,7 +25,18 @@ tags: bpm, beatgrid, drift, acceptance
 | 실패 가능성 | [HARD] 각 기준은 "이 명령이 실패하려면 무엇이 참이어야 하는가"에 답할 수 있어야 한다. 답이 "없음"이면 그 기준은 통과가 아니라 결함이다 (1.3.0) |
 | grep 부재 검사 | [HARD] `exit=1`(매치 없음)만 통과다. **`exit=2`는 검사 불발이며 통과가 아니다** — 정규식 거부나 파일 열기 실패이고, 둘 다 "매치 없음"과 구별되지 않는 0건 출력을 낸다 (1.3.0) |
 
-> 본 문서는 SPEC 1.3.0 기준이다. 1.1.0에서 전제 네 건이, 1.2.0에서 독립 계획 감사 iter-1(FAIL 0.70)의 지적 20건이, 1.3.0에서 iter-2(PASS 0.91)의 신규 SHOULD-FIX 3건이 반영되었다. 근거는 spec.md 0절.
+> 본 문서는 SPEC 1.4.0 기준이다. 1.1.0에서 전제 네 건이, 1.2.0에서 독립 계획 감사 iter-1(FAIL 0.70)의 지적 20건이, 1.3.0에서 iter-2(PASS 0.91)의 신규 SHOULD-FIX 3건이 반영되었다. 근거는 spec.md 0절.
+>
+> **1.4.0 (2026-09-06, sync 단계) — 문서와 구현의 불일치 정정 4건.** run 단계에서 관측되었으나 수용 기준 본문 수정은 run의 권한이 아니어서 이월된 건들이다. 넷 다 **문서가 실제와 어긋났던 것이지 구현을 바꾼 것이 아니다** — 이 개정으로 코드는 한 줄도 변경되지 않았다.
+>
+> | # | 위치 | 정정 내용 |
+> |---|------|----------|
+> | 1 | AC-BPM-007 (a-2), Definition of Done | pinned 테스트가 **3건이 아니라 4건**이다. 리드 결정으로 추가된 `test_confidence_upper_clamp_pinned`를 표에 넣고 기대 문구를 4건으로 고쳤다. 지정된 3건은 뮤테이션에서 상한 클램프 `min(1.0, ...)`를 고정하지 못했다(생존자) |
+> | 2 | AC-BPM-010 검증 명령 | `--cov` 대상 표기를 슬래시 `app/services/bpm_service`에서 점 `app.services.bpm_service`로 교정했다. 슬래시 표기는 **아무것도 측정하지 못하며**(`0.00%`, `exit=1`) 그 `0.00%`는 "커버리지 없음"이 아니라 "재지 못함"이다. 실측값은 92.45%. 임계 `--cov-fail-under=85`는 손대지 않았다 |
+> | 3 | PRE-4 (c) | `--collect-only`는 **존재하지 않는 대상으로도 통과**하므로 실패할 수 없는 기준이었다. 실제 측정 + `TOTAL` 행 존재 + `0.00%` 부재를 함께 단언하는 형태로 재작성하고, 세 대상 대조로 판정력을 실측 확인했다 |
+> | 4 | AC-BPM-010 프론트엔드 | 판정 **FAIL을 그대로 유지**하고 범위 경계만 기록했다. 기준을 넓혀 면제하지 않았다 — 무관함은 원인 설명이지 면제 사유가 아니다. 후속은 카드 `t2`·`t4` 소관 |
+>
+> 3번을 쓰는 과정에서 첫 초안이 고치려던 결함(실패할 수 없는 기준)을 그대로 물려받은 일이 있었고, 그 경과도 해당 절에 기록했다.
 
 ---
 
@@ -133,14 +144,50 @@ backend/.venv/bin/python -c "import pytest_cov; print('pytest_cov', pytest_cov._
 
 **기대 결과:** 버전 출력, `exit=0`. `ModuleNotFoundError`면 **실패**다.
 
-**(c) 인자 수용 확인 (선언·설치가 실제 효력을 갖는지):**
+**(c) 측정 효력 확인 (선언·설치가 실제로 커버리지를 재는지):**
 
 ```bash
-# [P]
-cd backend && .venv/bin/python -m pytest --cov=app/services/bpm_service --collect-only -q tests/test_bpm.py > /dev/null; echo "exit=$?"
+# [P] --collect-only 가 아니라 실제 측정을 수행한다. 파이프에 물리지 않는다 —
+#     물리면 종료 코드가 마지막 명령의 것으로 덮인다.
+#     --cov-fail-under 는 여기서 품질 기준이 아니라 판정 장치다: 이 인자가 있어야
+#     coverage 가 "Total coverage: NN%" 행을 출력하므로, 없으면 아래 3번 검사가
+#     대상 부재와 정상 측정을 구별하지 못한다(1.4.0에서 직접 확인).
+cd backend && .venv/bin/python -m pytest tests/test_bpm.py -q \
+  --cov=app.services.bpm_service --cov-report=term --cov-fail-under=85 \
+  > /tmp/pre4c.txt 2>&1; echo "exit=$?"
+grep -qE '^TOTAL +[0-9]+ +[0-9]+ +[0-9]+%' /tmp/pre4c.txt; echo "total_row=$?"
+grep -q "Total coverage: 0\.00%" /tmp/pre4c.txt; echo "zero_coverage=$?"
+grep -E "^TOTAL|Total coverage:" /tmp/pre4c.txt
 ```
 
-**기대 결과:** `exit=0`. `error: unrecognized arguments: --cov`가 나오면 **실패**다. (a)(b)가 통과해도 이 명령이 실패하면 AC-BPM-010은 통과로 표기할 수 없다.
+**기대 결과:** 세 값이 모두 아래와 같아야 하며, 하나라도 어긋나면 **실패**다.
+
+| 검사 | 기대 | 어긋났을 때의 뜻 |
+|------|------|----------------|
+| `exit=0` | `0` | 테스트 실패 또는 커버리지 임계 미달 |
+| `total_row=0` | `0` (= `TOTAL nnn nn nn%` 행이 **있음**) | 측정 대상이 매칭되지 않아 **아무것도 재지 못함** |
+| `zero_coverage=1` | `1` (= `Total coverage: 0.00%` 문자열이 **없음**) | 측정 대상이 비어 0%로 떨어짐 |
+
+(a)(b)가 통과해도 이 명령이 실패하면 AC-BPM-010은 통과로 표기할 수 없다.
+
+**이 기준이 실제로 실패할 수 있음을 확인한 실측 (1.4.0, 세 대상 대조):**
+
+| `--cov` 대상 | `exit` | `total_row` | `Total coverage:` | 판정 |
+|-------------|--------|-------------|-------------------|------|
+| `app.services.bpm_service` (교정된 점 표기) | `0` | `0` | `92.45%` | **통과** |
+| `app/services/bpm_service` (1.3.0까지의 슬래시 표기) | `1` | `1` | `0.00%` | **실패** |
+| `totally/nonexistent/target` (존재하지 않는 대상) | `1` | `1` | `0.00%` | **실패** |
+
+**[HARD] (c) 재작성 근거 (1.4.0).** 1.3.0까지 (c)는 `--collect-only`였고, 이 문서는 그것에 "선언·설치가 실제 효력을 갖는지" 확인하는 실효성 관문의 지위를 부여했다. **그러나 `--collect-only`가 확인하는 것은 "pytest가 `--cov` 인자를 거부하지 않았다" 하나뿐이다.** pytest는 인자를 받아들이기만 하고 그 대상이 매칭되는지는 보지 않는다. 리드가 재현한 실측:
+
+```
+--cov=app/services/bpm_service     --collect-only → exit=0   (그러나 실측정은 0.00%, exit=1)
+--cov=totally/nonexistent/target   --collect-only → exit=0   ← 존재하지 않는 대상으로도 통과
+```
+
+**존재하지 않는 대상으로도 통과하므로, 이 기준은 실패할 수 없었다.** 이 문서의 [HARD] 원칙("각 기준은 '이 명령이 실패하려면 무엇이 참이어야 하는가'에 답할 수 있어야 한다. 답이 '없음'이면 그 기준은 통과가 아니라 결함이다")에 정면으로 걸리는 형태다. 실제로 커버리지 미측정을 막은 것은 (c)가 아니라 AC-BPM-010의 `--cov-fail-under=85` 임계였다.
+
+**재작성 과정에서 같은 양식이 한 번 더 나왔다 (기록).** 1.4.0의 첫 초안은 `--cov-fail-under` 없이 실측정만 돌리고 `Total coverage: 0.00%` 부재를 단언하는 형태였다. 실행해 보니 **임계 인자가 없으면 coverage 가 `Total coverage:` 행 자체를 출력하지 않아**, 슬래시 표기에서도 그 문자열이 없어 검사가 통과했다(`exit=0`, `zero_coverage_match=1`). 즉 첫 초안 역시 존재하지 않는 대상을 걸러내지 못했다 — 고치려던 결함을 그대로 물려받은 형태이며, `progress.md`의 「결함을 고치려고 만든 장치가 같은 결함을 가진 사례」와 같은 구조다. 위 최종 형태는 임계 인자를 판정 장치로 되살리고 `TOTAL` 행 존재를 추가로 단언해 세 대상 전부에서 판정력을 갖는 것을 실측으로 확인했다.
 
 ---
 
@@ -564,7 +611,12 @@ diff는 파일이 옮겨지거나 커밋이 재작성되면 무력해지므로, 
 |--------|------|------|
 | `test_confidence_formula_pinned` | 등간격이 아닌 알려진 비트 배열(예: `[0.0, 0.5, 1.1, 1.5, 2.1, 2.5]`)을 `_calculate_confidence`에 넣고, 같은 배열로 `1.0 - std/mean`을 **테스트 안에서 직접 계산**한 값과 비교 | `abs(actual - expected) <= 1e-12`. `1.0 - cv*0.5` 같은 변형이 들어오면 즉시 실패 |
 | `test_librosa_confidence_cap_pinned` | `librosa.beat.beat_track` / `librosa.load` / `librosa.frames_to_time`을 패치해 **상한을 넘는** 신뢰도가 나오는 등간격 비트를 반환시키고 `_detect_with_librosa`를 실제로 호출 | 반환된 confidence가 정확히 `0.8`. 상한을 `0.9`로 바꾸면 실패한다 |
-| `test_confidence_formula_pinned_boundaries` | 완전 등간격 배열 → `1.0`, 표준편차가 평균을 넘는 배열 → `0.0` (`max(0.0, min(1.0, ...))` 클램프 고정) | 각각 정확히 `1.0` / `0.0` |
+| `test_confidence_formula_pinned_boundaries` | 완전 등간격 배열 → `1.0`, 표준편차가 평균을 넘는 배열 → `0.0` (`max(0.0, ...)` 하한 클램프 고정) | 각각 정확히 `1.0` / `0.0` |
+| `test_confidence_upper_clamp_pinned` (1.4.0 추가) | 비트가 **감소하는** 배열 `[5.0, 4.0, 3.1, 2.0, 1.1, 0.0]`을 `_calculate_confidence`에 넣는다. 감소 배열은 `mean_interval < 0`이므로 `cv < 0`이 되어 `1.0 - cv`가 1.0을 **초과**한다. 테스트는 먼저 `unclamped > 1.0`을 단언해 입력이 실제로 클램프를 건드림을 확인한 뒤, 결과를 검사한다 | `_calculate_confidence(descending) == 1.0`. 상한을 `min(2.0, ...)`으로 바꾸면 이 테스트만 실패한다 |
+
+**(a-2)의 pinned 테스트는 3건이 아니라 4건이다 (1.4.0 정정).** 1.3.0까지 이 표는 3건만 지정했으나 실제 구현은 4건이며, 네 번째 `test_confidence_upper_clamp_pinned`는 run 단계에서 **리드 결정으로 추가**되었다(`progress.md` 「리드 결정 — pinned 4번째 추가」).
+
+추가 이유는 문서 해석이 아니라 뮤테이션으로 확인된 사실이다. 지정된 3건은 REQ-BPM-007이 동결하는 표현식 `max(0.0, min(1.0, 1.0 - cv))` 중 **상한 클램프 `min(1.0, ...)` 조각을 고정하지 못한다.** `test_confidence_formula_pinned_boundaries`가 상한을 덮지 못하는 구조적 이유는 등간격 입력이 `cv == 0`이어서 `1.0 - cv`가 정확히 1.0이 되고, 잘라낼 초과분이 없어 클램프 연산 자체가 실행되지 않기 때문이다. 뮤테이션 `min(1.0, ...)` → `min(2.0, ...)`에서 3건 전부 통과했다(생존자). 네 번째를 넣은 뒤 같은 뮤테이션은 정확히 `test_confidence_upper_clamp_pinned` 한 건에서 실패한다.
 
 ```bash
 # [P]
@@ -572,7 +624,7 @@ cd backend && .venv/bin/python -m pytest tests/test_bpm.py::TestConfidenceCalcul
 cd backend && .venv/bin/python -m pytest tests/test_bpm.py -k "pinned" -v
 ```
 
-**기대 결과:** 기존 `TestConfidenceCalculation` 전부 무수정 PASSED, 신설 pinned 테스트 3건 PASSED.
+**기대 결과:** 기존 `TestConfidenceCalculation` 전부 무수정 PASSED, 신설 pinned 테스트 **4건** PASSED (1.4.0 정정 — 1.3.0까지 3건으로 적혀 있었다). `-k "pinned"`의 수집 개수가 **4 selected / 4 passed**여야 하며, `0 selected`나 `no tests ran`은 통과가 아니라 미실행이다.
 
 `test_librosa_confidence_cap_pinned`은 **`_detect_with_librosa`를 통째로 패치하지 않는다** — 패치하면 208행이 실행되지 않아 상한을 고정하지 못한다. librosa 호출부만 패치하고 함수 본문은 실제로 실행되게 한다(spec.md 6.3절 CT-2의 모킹 계층 원칙과 동일).
 
@@ -709,12 +761,23 @@ Scenario: 백엔드 테스트 전체가 통과하고 커버리지 목표를 만�
 **검증 명령:**
 
 ```bash
-# [P]
+# [P] --cov 대상은 점 표기(모듈 경로)다. 슬래시 표기는 측정되지 않는다 — 아래 1.4.0 정정 참조.
 cd backend && .venv/bin/python -m pytest tests/ -v \
-  --cov=app/services/bpm_service --cov-report=term-missing --cov-fail-under=85; echo "exit=$?"
+  --cov=app.services.bpm_service --cov-report=term-missing --cov-fail-under=85; echo "exit=$?"
 ```
 
 **기대 결과:** `exit=0`, 실패·에러 0건, `app/services/bpm_service.py` 커버리지 ≥ 85%.
+
+**[HARD] `--cov` 대상 표기 정정 (1.4.0).** 1.3.0까지 이 명령은 슬래시 표기 `--cov=app/services/bpm_service`를 썼다. 그 표기는 **파일에도 패키지에도 매칭되지 않아 측정 대상이 비어 있다.** 같은 테스트 실행으로 두 표기를 대조한 실측:
+
+| 표기 | 결과 |
+|------|------|
+| `--cov=app/services/bpm_service` (1.3.0까지의 문언) | `CoverageWarning: module-not-imported`, `Total coverage: 0.00%`, **`exit=1`** |
+| `--cov=app.services.bpm_service` (1.4.0 교정) | `bpm_service.py 159 stmts / 12 miss / 92%`, `Total coverage: 92.45%`, **`exit=0`** |
+
+**`0.00%`는 "커버리지가 없다"가 아니라 "재지 못했다"이다.** 두 상태는 같은 숫자로 나타나지만 전혀 다르며, 미측정을 0%로 읽으면 gap이 실패로 오인된다(그 반대 방향이었다면 gap이 통과로 오인되었을 것이다).
+
+**임계 `--cov-fail-under=85`는 손대지 않는다.** 이 인자가 실제 방어선이었다 — 슬래시 표기의 `0.00%`가 임계에 걸려 `exit=1`로 떨어졌기 때문에 통과 표기 경로가 닫혔다. 실측값 **92.45%**(`bpm_service.py` 159 stmts / 12 miss / 92%)는 85% 목표를 충족한다.
 
 `--cov-fail-under=85`를 붙인 이유는 판정을 사람의 눈이 아니라 exit code가 하도록 하기 위해서다. 이 인자가 없으면 커버리지가 60%여도 pytest는 exit 0을 내므로, "터미널에 찍힌 숫자를 읽고 통과로 적는" 경로가 열린다.
 
@@ -726,6 +789,16 @@ npx tsc --noEmit && npm test -- --run; echo "exit=$?"
 ```
 
 **기대 결과:** 두 단계 모두 `exit=0`.
+
+**[HARD] 범위 경계 기록 — 이 기준의 프론트엔드 부분은 FAIL이며, 본 카드에서 고치지 않는다 (1.4.0).**
+
+**(a) 판정은 FAIL이다.** 실측은 `npx tsc --noEmit` → `exit=0`, `npm test -- --run` → **`exit=1`**, `Tests 1 failed | 259 passed (260)`. 실패 대상은 `tests/unit/core/MetronomeEngine.test.ts > 다운비트는 880Hz, 업비트는 440Hz로 재생해야 한다`. 기준이 "두 단계 모두 `exit=0`"이고 실측이 `exit=1`이므로 **판정은 FAIL이다.**
+
+**(b) 이 카드 이전부터 있던 결함이다 (리드 재현).** run 레인은 diff로 인과를 배제했고(본 카드의 프론트엔드 변경은 `src/api/bpm.ts` 2행뿐이며, 실패 테스트와 그 대상 소스는 착수 이전 SHA 대비 바이트 동일), 리드는 **주 체크아웃 `main`(본 카드의 변경이 하나도 없는 트리)에서 같은 테스트를 실행해 `Tests 1 failed | 15 passed`로 동일하게 실패함을 확인했다.**
+
+**(c) 후속 처리는 다른 카드 소관이다.** 실패 대상인 메트로놈 다운비트 주파수는 백로그 카드 **t2**(스템 메트로놈 배선)와 **t4**(다운비트 880Hz 활성화)가 다루는 영역이며, 그쪽에서 처리된다.
+
+**(d) 기준을 넓히지 않은 이유.** "이 카드와 무관한 실패는 제외한다"로 기준을 재정의하지 **않았다. 무관함은 원인 설명이지 면제 사유가 아니다.** 원인을 알아냈다는 사실은 판정을 바꾸지 못하며, 판정을 바꾸면 다음에 같은 자리에서 생기는 진짜 회귀도 함께 통과하게 된다. 판정은 FAIL로 남기고 범위 경계만 기록한다.
 
 ---
 
@@ -766,7 +839,7 @@ npx tsc --noEmit && npm test -- --run; echo "exit=$?"
 - [ ] AC-BPM-006-BEFORE: **M2 IMPROVE 착수 전에** 측정 — 선행 `grep`으로 174행 호출이 살아 있음을 확인한 출력 + 드리프트 JSON 전문 + **착수 시점 SHA** 첨부
 - [ ] AC-BPM-006-AFTER: `--threshold-ms 1.0` 실행 exit 0 + **`matched + inserted == beat_count` 항등식 성립** + 보정 건수가 `logger.info` 기록과 일치
 - [ ] AC-BPM-006-OPT: Hotel California 측정 또는 "미수행" 기록 (×2 오검출 검증은 카드 `t10` 소관 — 여기서 수행하지 않는다)
-- [ ] AC-BPM-007: `TestConfidenceCalculation` 무수정 PASSED + **착수 시점 SHA 기준 diff 0줄**(`HEAD` 기준 아님) + **pinned 테스트 3건 PASSED** + 값 변화 기록
+- [ ] AC-BPM-007: `TestConfidenceCalculation` 무수정 PASSED + **착수 시점 SHA 기준 diff 0줄**(`HEAD` 기준 아님) + **pinned 테스트 4건 PASSED**(1.4.0 정정) + 값 변화 기록
 - [ ] AC-BPM-008: BPM 차이 ≤ 2.0 + **변경 전/후 각 5회 이상 회차별 값과 중앙값** 첨부, 중앙값 비 ≤ 1.05
 - [ ] AC-BPM-009: `^madmom` 매치 1건 + **환경 마커 부재 확인** + 낡은 "3.13 비호환" 주석 정리 확인
 - [ ] AC-BPM-010: 백엔드 전체 통과 + `--cov-fail-under=85` exit 0, 프론트엔드 회귀 통과
