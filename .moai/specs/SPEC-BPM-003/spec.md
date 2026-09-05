@@ -364,7 +364,7 @@ madmom의 DBN 비트 트래커는 인트로·브레이크다운 구간에서 비
 | `BpmResult` (dataclass) | 필수, 기본값 없음 | 서비스는 항상 어느 엔진을 썼는지 안다. 기본값을 주면 "모름" 상태가 조용히 전파된다 |
 | 캐시 JSON | 필수 (`data["engine"]`) | REQ-BPM-004. 구 캐시는 재분석으로 자가 치유 |
 | `BpmAnalysisResponse` (Pydantic) | 필수 `engine: str` | 백엔드는 항상 값을 채운다. 선택으로 두면 누락을 감지할 수 없다 |
-| `BpmAnalysisResponse` (TypeScript) | 선택 `engine?: string` | 프론트엔드가 구버전 백엔드에 붙는 배포 시차를 견뎌야 한다. 표시 코드는 `undefined`를 처리한다 |
+| `BpmAnalysisResponse` (TypeScript) | 선택 `engine?: string` | 프론트엔드가 구버전 백엔드에 붙는 배포 시차를 견뎌야 한다 |
 
 ---
 
