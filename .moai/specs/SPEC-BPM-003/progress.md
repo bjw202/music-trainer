@@ -437,3 +437,113 @@ tracked_exit=0
 ```
 
 명시 pathspec으로만 스테이징했다(`git add -A` 미사용). 커밋 후 남은 untracked는 이 카드의 산출물이 아닌 `.claude/agent-memory/manager-spec/`, `.moai/state/`, `backend/.moai/`, `node_modules` 넷뿐이다.
+
+---
+
+## 리드 결정 — 실행 위치 (A안)
+
+기록 주체: run 레인 (오케스트레이터). 결정 주체: kanban lead 세션.
+
+**(a) 문서와 다른 점.** plan.md:44 [HARD]는 "이 카드의 작업은 주 체크아웃에서 수행한다"고, acceptance.md:50은 그룹 P 명령의 실행 위치를 "주 체크아웃 전용"으로 규정한다. 실제 수행은 **전부 워크트리 `.claude/worktrees/t1`에서** 이루어졌고, Python 계열 그룹 P 명령은 주 체크아웃의 인터프리터를 **절대경로로** 호출해 워크트리 코드를 대상으로 실행했다. `npx tsc` / `npm test`는 워크트리에 건 `node_modules` 심링크로 워크트리에서 수행했다.
+
+**(b) 이유.** 주 체크아웃은 `main` 브랜치이고 카드 브랜치 `WT-remove-smooth-beats`가 체크아웃돼 있지 않다. 거기서 작업하면 카드 커밋이 `main`에 직접 쌓이고, 브랜치를 바꾸려 하면 공유 체크아웃 브랜치 가드에 걸린다. 계획서의 [HARD]는 "실행 위치"만 보고 "어느 브랜치 위인가"를 보지 않았다. 또한 계획서가 "그룹 P는 주 체크아웃 전용"이라고 결론지은 전제 — 워크트리에 `.venv`가 없으므로 그 환경을 쓸 수 없다 — 는 성립하지 않는다. 없는 것은 venv 디렉터리이지 그것을 쓸 능력이 아니다.
+
+**(c) 재현에 쓴 명령과 출력.**
+
+```
+$ cd .claude/worktrees/t1/backend && \
+  /Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python -c \
+  "import sys; sys.path.insert(0,'.'); from app.services import bpm_service as b; \
+   print('cwd_module =', b.__file__); print('MADMOM_AVAILABLE =', b._MADMOM_AVAILABLE); \
+   print('LIBROSA_AVAILABLE =', b._LIBROSA_AVAILABLE); print('interpreter =', sys.executable)"
+
+cwd_module = /Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1/backend/app/services/bpm_service.py
+MADMOM_AVAILABLE = True
+LIBROSA_AVAILABLE = True
+interpreter = /Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python
+```
+
+로드된 모듈이 **워크트리 파일**이고 madmom·librosa가 모두 가용하다. 따라서 증거의 인터프리터 요건(`backend/.venv/bin/python`, Python 3.13.11)은 충족된다.
+
+SPEC 문언 정정은 sync 단계 소관이며, run 단계에서 spec.md / plan.md / acceptance.md 본문을 고치지 않았다.
+
+---
+
+## 리드 결정 — 사전 기준선 측정 모드 (`--legacy-index-diff`)
+
+**(a) 문서와 다른 점.** acceptance.md:448의 AC-BPM-006-BEFORE 측정 명령은 기본(분류) 모드다. 실제 측정은 **`--legacy-index-diff` 모드**로 수행했다. 임계 `max_drift_ms >= 100`은 그대로 두었다 — 모드만 바뀌고 기준은 바뀌지 않았다.
+
+**(b) 이유.** 기본 모드는 `emitted[i]`를 최근접 `detector[j]`와의 거리로 분류하고(`MATCH_TOLERANCE_MS = 5.0`), `max_drift_ms`를 **감지기 유래 비트에만** 적용한다. 그런데 사전 기준선에서 재려는 드리프트는 수백 ms이므로 5ms를 크게 넘고, **드리프트가 큰 비트일수록 전부 "삽입"으로 분류되어 지표에서 빠진다.** 즉 재려는 대상이 측정 규칙에 의해 사라져 기준이 구성상 충족 불가능해진다. spec.md가 `MATCH_TOLERANCE_MS ≤ threshold_ms`에 대해 경고한 현상과 같은 형태가, 실측 드리프트가 tolerance를 크게 넘는 상황에서 반대편으로 일어난 것이다. 또한 변경 전 서비스는 보정 건수를 노출하지 않으므로(그 인터페이스는 M2 산출물) 기본 모드의 `inserted_count == service_inserted` [HARD] 대조가 측정 전 중단시킨다.
+
+`--legacy-index-diff`는 신설이 아니라 SPEC에 이미 있는 설계 요소다(spec.md:469, plan.md:219/230/237/275). 원본의 인덱스 정렬 차분을 그대로 재현하며, 변경 전 `_smooth_beats`는 비트 개수를 바꾸지 않으므로 인덱스 정렬이 성립한다. 분류를 거치지 않으므로 드리프트가 사라지지 않고 서비스 보정 건수도 필요하지 않다. 원본 스크립트 226행의 기대값 360ms도 이 계산의 산물이다.
+
+사후 기준(AC-BPM-006-AFTER)은 문서대로 기본 모드를 쓴다. 변경 없다.
+
+**(c) 실측 출력.** 아래 「AC-BPM-006-BEFORE 실측」 절에 전문을 싣는다.
+
+---
+
+## AC-BPM-006-BEFORE 실측 — 사전 기준선 (M2 IMPROVE 착수 **전**)
+
+작업 디렉터리: `/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1`
+인터프리터: `/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python`
+`sys.version`: `3.13.11 (main, Dec 17 2025, 20:55:16) [Clang 21.1.4 ]`
+
+### 선행 확인 — 호출이 살아 있는가 [W]
+
+```
+$ grep -n "_smooth_beats(beats)" backend/app/services/bpm_service.py; echo "exit=$?"
+176:    beats = _smooth_beats(beats)
+exit=0
+```
+
+**행 번호 차이를 기록한다.** acceptance.md:442의 기대 출력은 `174:    beats = _smooth_beats(beats)`이나 실제 관측은 **176행**이다. M1이 같은 파일에 5행(`engine` 필드 관련)을 추가해 호출 지점이 두 줄 밀렸기 때문이며, 기준의 실질 — 호출이 호출 경로에 살아 있음 — 은 충족된다. 기준을 고치지 않고 차이만 기록한다.
+
+### 착수 시점 SHA
+
+- base_sha: 4ba10a96e820cb68eb9712e6ca952147db97b739
+
+이 값은 plan.md M2 선행 조건 2의 지시대로 **측정 시점의 `git rev-parse HEAD`** 출력이다. 다만 이 시점에는 M1(`1073c11`)과 M3(`f766655`, `4ba10a9`)이 이미 커밋되어 있고 M1은 `bpm_service.py`를 수정했으므로, 이 SHA를 기준으로 한 AC-BPM-007 (a)의 diff는 **M1의 변경을 포함하지 않는다.** 더 강한 기준선은 M1 이전인 `cfd5475`다. AC-BPM-007 (a)는 두 SHA 모두에 대해 실행하고 두 출력을 함께 기록한다 — 기준을 약화하지 않기 위해서다.
+
+### 측정 [P — 워크트리에서 절대경로 인터프리터]
+
+```
+$ python -c "import shutil,os; shutil.rmtree('/tmp/bpm_cache', ignore_errors=True); print('cache_exists=', os.path.exists('/tmp/bpm_cache'))"
+cache_exists= False
+
+$ <interpreter> scripts/measure_beatgrid_drift.py \
+    "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3" \
+    --legacy-index-diff --json
+{"max_drift_ms": 359.9999999999852, "last_beat_drift_ms": 240.0000000000091, "mean_drift_ms": 213.68932038834927, "beat_count": 721, "matched_count": null, "inserted_count": null, "dropped_count": null, "engine": "madmom", "service_inserted": null, "service_dropped": null}
+measure_exit=1
+
+--- stderr ---
+  감지기 원본 획득 중 (madmom RNN + DBN)...
+  캐시를 사용한다 — 결과가 이전 실행으로 가려질 수 있다. --no-cache 로 우회한다.
+임계 초과: max_drift_ms=360.000 > threshold_ms=1.000
+```
+
+**판정: PASS.** 기준은 `max_drift_ms >= 100`이며 실측 `359.99999...` (= 360.000ms)이 이를 충족한다. `measure_exit=1`은 스크립트가 기본 임계 1.0ms 초과를 알린 것으로, 변경 전 코드에서는 초과가 **예상된 동작**이다 — 이 기준의 판정 대상은 exit code가 아니라 `max_drift_ms` 값이다.
+
+원본 스크립트 226행의 기대값 `Smoke On the Water : 최대 이탈 360ms`와 **정확히 일치**한다. 포팅이 측정을 바꾸지 않았고 기준 픽스처가 진단 당시와 동일함을 함께 보인다.
+
+`matched_count` / `inserted_count` / `dropped_count` / `service_*`가 `null`인 것은 `--legacy-index-diff`가 분류를 수행하지 않기 때문이며, 값의 부재를 0으로 채우지 않는다는 설계에 따른 것이다.
+
+---
+
+## AC-BPM-008 / AC-BPM-007 (b) — 변경 전 값 (M2 IMPROVE 착수 **전**)
+
+작업 디렉터리: `.../worktrees/t1/backend` · 인터프리터·버전 위와 동일. 매 회차 `/tmp/bpm_cache` 삭제.
+
+```
+elapsed_runs=['18.077', '18.148', '18.008', '18.022', '18.232']
+elapsed_median=18.077
+bpm_runs=['115.4000', '115.4000', '115.4000', '115.4000', '115.4000']
+engine=madmom confidence=0.978
+```
+
+- **변경 전 분석 시간 중앙값: 18.077초** (5회). AC-BPM-008의 사후 기준은 `중앙값_after <= 18.077 * 1.05 = 18.981초`.
+- **변경 전 BPM: 115.4000** (5회 전부 동일). 사후 기준은 `|bpm_after - 115.4| <= 2.0`.
+- **변경 전 confidence: 0.978** (AC-BPM-007 (b)의 변경 전 값). 변경 후 낮아지는 것은 예상된 결과이며 실패가 아니다 — 범위 `0.0 <= confidence <= 1.0`만 유지되면 된다.
+
+이 세 값은 M2 IMPROVE가 176행 호출을 교체한 이후에는 존재하지 않는다.
