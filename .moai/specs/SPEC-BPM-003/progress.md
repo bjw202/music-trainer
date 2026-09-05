@@ -1364,3 +1364,63 @@ exit=1
 ```
 
 백엔드 가상환경에도 PATH에도 `ruff`가 없다. 이 카드의 범위 밖이므로 설치하지 않았고, 따라서 **린트는 수행되지 않았다 — 통과가 아니라 GAP이다.**
+
+---
+
+## 추가 검증 — 수집 개수 확인 및 뮤테이션 생존자 1건 (리드 지시)
+
+리드 지시로 HEAD(`1c51192`)에서 **종료 코드가 아니라 수집 개수로** 재확인하고, 뮤테이션 생존자를 다시 조사했다.
+
+### 수집 개수 [P] — `pwd = <worktree>/backend`
+
+```
+$ <interpreter> -m pytest tests/test_bpm.py -k "pinned" -v
+collected 29 items / 26 deselected / 3 selected
+3 passed, 26 deselected  (exit=0)
+
+$ <interpreter> -m pytest tests/ --collect-only -q
+147 tests collected in 0.02s  (exit=0)
+
+$ <interpreter> -m pytest tests/ -q
+147 passed  (exit=0)
+```
+
+`-k "pinned"`가 **3 selected / 3 passed**이며 `0 selected`도 `no tests ran`도 아니다.
+
+**M5의 144를 재현해 확인했다** — CT-1 삭제 외에 사라진 테스트가 없음을 보이기 위해서다.
+
+```
+$ <interpreter> -m pytest tests/ -q --deselect tests/test_bpm.py::TestConfidenceFormulaPinned
+144 passed, 3 deselected  (exit=0)
+
+$ <interpreter> -m pytest tests/ --collect-only -q | grep -c "test_ct1_smooth_beats_cumulative_reconstruction"
+0
+```
+
+147에서 신설 3건만 빼면 정확히 144다. 즉 M5의 145→144는 CT-1 1건에 대응하며, 다른 테스트가 함께 사라지지 않았다.
+
+**작업 디렉터리 함정을 실제로 밟았다.** 워크트리 루트에도 `tests/`가 있는데 그것은 프론트엔드 vitest 디렉터리다. 루트에서 `pytest tests/`를 돌리면 파이썬 테스트가 0건 수집되어 `exit=5` / `no tests ran`이 난다. 이 SPEC의 모든 백엔드 명령은 `pwd = <worktree>/backend`에서만 유효하며, 종료 코드만 보면 이 상태를 통과와 구별할 수 없다.
+
+### 뮤테이션 — 생존자 1건 발견
+
+| # | 뮤테이션 | 위치 | pinned 3건 결과 |
+|---|---------|------|----------------|
+| A | `1.0 - cv` → `1.0 - cv * 0.5` | 124행 | `2 failed, 1 passed` — 공식·경계 테스트가 죽인다 |
+| B | `min(confidence, 0.8)` → `0.9` | 260행 | `1 failed, 2 passed` — 상한 테스트가 죽인다 |
+| C | `min(1.0, ...)` → `min(2.0, ...)` | 124행 | **`3 passed` — 전원 생존. 전체 스위트도 `147 passed`로 생존** |
+
+**C는 진짜 생존자다.** REQ-BPM-007이 동결하는 표현식은 `max(0.0, min(1.0, 1.0 - cv))` 전체인데, 그 중 **상한 클램프 `min(1.0, ...)`을 고정하는 테스트가 하나도 없다.** 현재 스위트의 어떤 테스트도 이 조각을 통과하지 않는다.
+
+이 클램프가 도달 불가능한 죽은 코드라서가 아니다 — 실제로 도달한다. 뮤테이션 C 상태에서 하강 배열을 넣어 확인했다.
+
+```
+$ <interpreter> -c "... _calculate_confidence(np.array([5.0, 4.0, 3.1, 2.0, 1.1, 0.0]))"
+mean=-1.000000 std=0.089443 cv=-0.089443 1-cv=1.089443
+MUTATED min(2.0,...) descending -> 1.0894427190999916
+```
+
+비트가 감소하는 배열에서는 `mean_interval < 0` → `cv < 0` → `1.0 - cv > 1.0`이 되어 상한이 실제로 물린다. 원본 코드라면 `1.0`으로 잘리고, 뮤테이션 C에서는 `1.0894`가 그대로 나온다. 즉 **관측 가능한 차이가 존재하는데 그것을 잡는 테스트가 없다.**
+
+**고쳐서 통과시키지 않았다.** 뮤테이션은 임시 적용 후 `git checkout --`으로 되돌렸고, 복원 뒤 124행이 `max(0.0, min(1.0, 1.0 - cv))`, 260행이 `min(confidence, 0.8)`임과 `git status`가 깨끗함, 스위트 `147 passed`를 확인했다. acceptance.md AC-BPM-007 (a-2)가 요구한 테스트는 세 건이고 그 세 건의 내용도 문서가 지정한 대로이므로, 네 번째 테스트를 추가하는 것은 지정 범위 밖이다. **사실만 기록하고 리드 판단에 넘긴다.**
+
+정상 입력에서 비트는 단조 증가하므로 이 경로는 실사용에서 발생하지 않는다. 그러나 "발생하지 않으니 괜찮다"는 것은 동결이 강제된다는 뜻이 아니라 **동결의 한 조각이 검증되지 않은 채 남아 있다**는 뜻이다.
