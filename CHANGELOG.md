@@ -30,7 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **전역 재구성을 국소 보정 `_repair_beats`로 대체 (SPEC-BPM-003)**: 비트 배열 전체를 다시 깔지 않고, 간격이 튄 지점만 국소적으로 보정한다
   - 감지기 출력을 기본적으로 신뢰하고, 명백한 누락·중복만 손댄다
   - 보정 건수(`inserted` / `dropped`)를 반환해 측정 스크립트가 자체 분류 결과와 대조할 수 있다
-- **구 스키마 캐시 안전 열화**: `engine` 필드가 없는 이전 버전 캐시를 만나도 예외 없이 동작한다 (`data.get("engine")` 사용, 캐시 무효화 불필요)
+- **구 스키마 캐시 안전 열화**: `engine` 필드가 없는 이전 버전 캐시를 만나도 서비스가 중단되지 않는다
+  - `_get_cached_result`는 `data["engine"]` 직접 첨자로 읽고 `KeyError`를 잡아 `None`을 반환한다 — 해당 캐시 항목은 미적중으로 처리되어 재분석이 일어난다. `.get()`을 쓰지 않는 것은 의도된 선택이며, 기본값으로 채우면 어느 엔진이 낸 결과인지 모르는 채 응답에 실리기 때문이다
+  - 전체 캐시를 비울 필요는 없다. 구 스키마 항목만 개별적으로 재분석된다
 - **`backend/requirements.txt`의 madmom 선언 주석 해제**: `madmom>=0.16.1`을 환경 마커 없이 선언
   - 기존 주석 "Python 3.13 비호환 (Cython 빌드 실패)"은 사실과 달랐다. madmom은 `bpm_service.py`의 3.13/NumPy 2.x 호환 shim을 거쳐 이 환경에서 이미 정상 동작하고 있었으며, 이번 변경은 **선언이 실제 상태를 뒤늦게 따라간 것**이다
 
