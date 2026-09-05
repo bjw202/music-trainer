@@ -1,7 +1,7 @@
 ---
 id: SPEC-BPM-003
 title: 비트그리드 전역 재구성 제거 및 감지기 출력 신뢰 — 구현 계획
-version: 1.0.0
+version: 1.1.0
 status: draft
 priority: high
 created: 2026-09-05
@@ -18,11 +18,20 @@ tags: bpm, beatgrid, drift, ddd, plan
 | 항목 | 내용 |
 |------|------|
 | SPEC ID | SPEC-BPM-003 |
-| 개발 방법론 | Hybrid → 기존 코드 수정은 DDD(ANALYZE-PRESERVE-IMPROVE), 신규 스크립트는 TDD |
+| 개발 방법론 | Hybrid → 기존 코드 수정은 DDD(ANALYZE-PRESERVE-IMPROVE), 원본에 없던 신규 CLI 계약만 TDD |
 | 커버리지 목표 | 85% (`hybrid_settings.min_coverage_legacy` = `min_coverage_new` = 85) |
 | 칸반 카드 | `t1` (class C) |
+| 계획 버전 | 1.1.0 (spec.md 0절 전제 정정 반영) |
 
-> 전제 정정: 디스패치는 `development_mode: ddd`라고 했으나 실제 설정은 `hybrid`다. 기존 코드를 고치는 작업이므로 `hybrid_settings.legacy_refactoring: ddd`가 적용되어 **실효 사이클은 DDD**이며, 신규 파일 `scripts/measure_beatgrid_drift.py`만 `new_features: tdd` 분기를 따른다.
+> 전제 정정 (1): 디스패치는 `development_mode: ddd`라고 했으나 실제 설정은 `hybrid`다. 기존 코드를 고치는 작업이므로 `hybrid_settings.legacy_refactoring: ddd`가 적용되어 **실효 사이클은 DDD**다.
+>
+> 전제 정정 (2, 1.1.0): `scripts/measure_beatgrid_drift.py`는 신규 파일이 **아니다.** `metronome-update-plan-docs/tools/measure_beatgrid_drift.py`에 235행짜리 동작하는 원본이 이미 있으며(git untracked이라 워크트리에서 보이지 않았을 뿐이다), 본 작업은 **포팅 + git 등록 + 경로/환경 가정 정규화**다. 따라서 측정 코어는 DDD, 원본에 없던 CLI 계약(`--json` / `--threshold-ms` / 임계 exit)만 TDD로 간다. 근거와 분기표는 spec.md 7절 P4.
+>
+> 전제 정정 (3, 1.1.0): madmom은 `backend/.venv`(Python 3.13.11)에서 **설치되어 정상 동작한다**(`_MADMOM_AVAILABLE = True`). 환경 마커 제안은 철회되었고, madmom 경로는 실제 실행으로 검증한다.
+>
+> 이 세 정정의 공통 원인은 하나다 — 1.0.0의 조사가 워크트리 안에서만 이루어져 git untracked 파일(`backend/.venv`, 원본 스크립트)을 볼 수 없었다. spec.md 0절 참조.
+>
+> **독립 감사(plan-audit)는 본 SPEC의 흐름 안에서 수행하지 않는다.** 칸반 lead 세션이 별도로 진행한다.
 
 ---
 
@@ -34,7 +43,7 @@ tags: bpm, beatgrid, drift, ddd, plan
 |----------|---------|---------|------|
 | M1: 데이터 모델 및 스키마 확장 (`engine`) | Primary | REQ-BPM-003, REQ-BPM-004 | 데이터 모델 변경 — 되돌리기 비쌈 |
 | M2: 국소 보정 설계 확정 및 구현 | Primary | REQ-BPM-002 | 알고리즘 판단 — 되돌리기 비쌈 |
-| M3: 드리프트 측정 스크립트 (TDD) | Primary | REQ-BPM-005 | 신규 계약 — 검증 도구 자체 |
+| M3: 드리프트 측정 스크립트 포팅 (DDD 코어 + TDD CLI) | Primary | REQ-BPM-005 | 기존 도구 이식 + 신규 계약 — 검증 도구 자체 |
 | M4: 특성화 테스트 보강 (PRESERVE) | Primary | 6.3절 CT-1~CT-3 | 안전망 — M5의 선행 조건 |
 | M5: `_smooth_beats` 제거 (IMPROVE) | Primary | REQ-BPM-001 | 기계적 삭제 |
 | M6: 의존성 선언 및 성능 확인 | Secondary | REQ-BPM-006, REQ-BPM-008 | 기계적 |
@@ -119,11 +128,33 @@ M3 (측정 스크립트)─┘                        ↑
 
 ---
 
-## M3: 드리프트 측정 스크립트 (Primary, TDD)
+## M3: 드리프트 측정 스크립트 포팅 (Primary, DDD 코어 + TDD CLI)
 
-신규 파일이므로 `hybrid_settings.new_features: tdd`가 적용된다. 테스트를 먼저 쓴다.
+**신규 작성이 아니라 포팅이다.** 원본은 `metronome-update-plan-docs/tools/measure_beatgrid_drift.py` (235행 / 8568바이트, git untracked). 목적지는 `scripts/measure_beatgrid_drift.py`이며, git에 등록되어야 한다.
 
-### RED
+### ANALYZE — 원본이 이미 하는 일
+
+| 원본 위치 | 동작 | 포팅 시 |
+|----------|------|--------|
+| `_patch_numpy_for_madmom()` (37행), `_load_smooth_beats()` (58행) | `sys.path`에 `APP_DIR/backend`를 넣고 대상 앱의 `_smooth_beats`를 실제로 가져온다(없으면 동등 사본) | 유지. 단 경로 유도 방식은 정규화 (a) |
+| `measure_d1_d5()` (107행) | madmom `RNNBeatProcessor` + `DBNBeatTrackingProcessor(fps=100)`로 원본 비트를 얻고, `smoothed - raw` 차분에서 최대 이탈·마지막 비트 이탈·구간별 이탈을 ms로 출력 | **측정 코어. 보존 대상** |
+| `check_d2_downbeat()` (161행) | 다운비트 점검 | 본 SPEC 범위 밖(spec.md 11절). 포팅 시 제외 가능 |
+| `main() -> int` (194행) | 곡을 자동 탐색해 순회 | 인자로 받은 단일 경로 우선으로 변경 |
+
+원본에 **없는** 것: `argparse`, JSON 출력, `--threshold-ms`, 임계 초과 시 exit 1. 이 넷이 신규 계약이며 TDD 대상이다.
+
+### PRESERVE — 옮기기 전에 고정할 것
+
+원본을 그대로 실행해 기준 픽스처에 대한 출력(최대 이탈 ms, 마지막 비트 이탈 ms, 비트 수)을 `progress.md`에 verbatim 기록한다. 포팅 후 같은 입력에서 같은 값이 나오는지 대조하는 것이 이 마일스톤의 안전망이다. **기록 없이 옮기면 측정값이 달라져도 아무도 알아채지 못한다.**
+
+### IMPROVE — 정규화 두 곳 (REQ-BPM-005)
+
+1. **(a) `APP_DIR` 정규화.** 29-30행의 머신 고유 절대 경로 기본값(`Path.home() / "Dev/my-project-01/guitar-mp3-trainer-v2"`)을 버리고, `Path(__file__).resolve().parent.parent`처럼 스크립트 자신의 위치에서 리포 루트를 유도한다. `APP_DIR` 환경 변수 없이 실행해도 동작해야 한다(AC-BPM-005 (e)).
+2. **(b) 인터프리터 하드코딩 제거.** 12행·204행 사용법 문구의 `~/Dev/.../backend/.venv/bin/python`을 리포 상대 안내로 대체한다.
+
+추가로, 측정 정의를 유지하기 위한 필수 일반화가 하나 있다. 원본은 `smoothed - raw`의 **인덱스 정렬 차분**을 쓰는데, 이는 `_smooth_beats`가 비트 개수를 바꾸지 않기에 성립했다. `_repair_beats`는 삽입·제거로 개수를 바꾸므로 **최근접 대응**으로 바꾼다(spec.md REQ-BPM-005).
+
+### RED — 신규 CLI 계약 (TDD)
 
 `backend/tests/test_beatgrid_drift.py`:
 
@@ -131,10 +162,11 @@ M3 (측정 스크립트)─┘                        ↑
 2. 합성 입력 — 방출 그리드가 마지막에서 0.64초 밀림 → `last_beat_drift_ms ≈ 640`, `max_drift_ms ≥ 100`, exit 1
 3. `--json` 출력이 유효한 JSON이고 5개 키(`max_drift_ms`, `last_beat_drift_ms`, `mean_drift_ms`, `beat_count`, `engine`)를 모두 포함
 4. 존재하지 않는 파일 경로 → 0이 아닌 exit code + stderr 메시지
+5. `APP_DIR` 환경 변수를 지운 상태에서 실행해도 리포 루트를 찾아 정상 동작 (정규화 (a) 검증)
 
 ### GREEN
 
-`scripts/measure_beatgrid_drift.py`:
+`scripts/measure_beatgrid_drift.py` (포팅 결과):
 
 ```
 usage: python scripts/measure_beatgrid_drift.py <audio-path> [--json] [--threshold-ms 1.0] [--no-cache]
@@ -151,7 +183,13 @@ usage: python scripts/measure_beatgrid_drift.py <audio-path> [--json] [--thresho
 
 ### REFACTOR
 
-감지기 원본 획득 로직을 `bpm_service`에 중복 구현하지 않고 재사용 가능한 최소 진입점으로 정리한다.
+감지기 원본 획득 로직을 `bpm_service`에 중복 구현하지 않고 재사용 가능한 최소 진입점으로 정리한다. 원본 스크립트의 `_load_smooth_beats()`가 이미 "대상 앱의 실제 함수를 import하고 실패 시 사본으로 폴백"하는 형태이므로, 그 의도를 유지하되 리포 안으로 들어온 만큼 폴백 사본은 걷어낸다.
+
+### 완료 조건
+
+- `git ls-files scripts/measure_beatgrid_drift.py`가 파일을 찾는다 (원본이 untracked였던 것이 오판의 원인이었다).
+- `APP_DIR` 없이 실행해도 동작한다.
+- 원본 실행 출력(PRESERVE 단계 기록)과 포팅본 출력이 기준 픽스처에서 일치한다. 최근접 대응 일반화로 인한 차이는 예외이며, 그 사실을 기록한다.
 
 ---
 
@@ -182,8 +220,10 @@ M2와 M4가 끝난 뒤의 기계적 작업이다.
 
 ```bash
 rm -rf /tmp/bpm_cache
-python scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3" --json
+backend/.venv/bin/python scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3" --json
 ```
+
+인터프리터는 백엔드 런타임(`backend/.venv/bin/python`, Python 3.13.11)을 쓴다. madmom이 그 환경에서만 동작하므로, 다른 인터프리터로 측정하면 librosa 경로로 빠져 madmom 드리프트를 재지 못한다.
 
 출력의 `max_drift_ms`를 `progress.md`에 verbatim 기록한다. 이것이 AC-BPM-006-BEFORE의 증거이며, 측정하지 못하면 gap으로 보고한다(추정값 기입 금지).
 
@@ -202,16 +242,21 @@ python scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the
 
 ## M6: 의존성 선언 및 성능 확인 (Secondary)
 
-1. `backend/requirements.txt`:
+1. `backend/requirements.txt` 25행:
    ```
    # madmom>=0.16.1  # Python 3.13 비호환 (Cython 빌드 실패) - librosa fallback 사용
    ```
    →
    ```
-   # madmom: Python 3.13 이상에서 Cython 빌드 실패 → 환경 마커로 스킵, librosa 폴백 사용
-   madmom>=0.16.1; python_version < "3.13"
+   # madmom: bpm_service.py 의 3.13/NumPy 2.x 호환 shim 을 거쳐 import 됨
+   madmom>=0.16.1
    ```
-2. 백엔드 실행 인터프리터에서 `python -c "import madmom; print(madmom.__version__)"` 판정 → A/B 분기 기록(spec.md 6.1절). 사용한 인터프리터 경로도 함께 남긴다.
+   **환경 마커를 붙이지 않는다.** 백엔드 런타임은 Python 3.13.11이고 그 위에서 madmom이 실제로 동작하므로, `; python_version < "3.13"`은 madmom이 작동하는 바로 그 인터프리터에서 설치를 건너뛰게 만든다. 낡은 "3.13 비호환" 주석도 함께 정리한다 — 그대로 두면 다음 독자가 같은 오판을 반복한다.
+2. 백엔드 실행 인터프리터에서 madmom 가용성 판정 → 결과와 인터프리터 경로 기록(spec.md 6.1절, acceptance.md PRE-2):
+   ```bash
+   cd backend && .venv/bin/python -c "import sys; sys.path.insert(0,'.'); from app.services import bpm_service as b; print('MADMOM_AVAILABLE =', b._MADMOM_AVAILABLE)"
+   ```
+   **맨 `python -c "import madmom"`을 쓰지 않는다.** shim을 거치지 않은 import는 3.13에서 항상 실패하므로, madmom이 동작하는 머신에서도 "없음"으로 오판한다.
 3. 분석 소요 시간 변경 전/후 비교 (REQ-BPM-008). 동일 파일, 캐시 비운 상태에서 각 1회 이상.
 
 ---
@@ -220,8 +265,11 @@ python scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the
 
 | 위험 | 대응 |
 |------|------|
-| madmom 미설치로 실제 madmom 경로를 못 밟음 | spec.md 6.1 B분기 — 모킹 단위 테스트로 대체하고 progress.md에 명시. "성공했다"고 쓰지 않는다 |
-| Hotel California 픽스처 부재 | Smoke On the Water로 기준 픽스처 확정. Hotel은 운영자 제공 시 보조 측정(AC-BPM-006-OPT) |
+| madmom 경로를 못 밟음 | 가능성 낮음 — madmom 가용성은 확인되었다(`_MADMOM_AVAILABLE = True`). 실제 실행으로 검증한다. 다른 머신에서 False가 나오는 경우에만 spec.md 6.1 B분기로 대체하고 progress.md에 명시한다 |
+| 판정 명령을 맨 `import madmom`으로 써서 오판 | shim 경로(`bpm_service._MADMOM_AVAILABLE`)로만 판정한다. 맨 import는 3.13에서 항상 실패한다 |
+| 포팅 중 측정 로직이 조용히 달라짐 | M3 PRESERVE — 원본 출력을 먼저 verbatim 기록하고 포팅본과 대조한다 |
+| 포팅본을 git에 등록하지 않음 | 원본이 untracked였던 것이 1.0.0 오판의 직접 원인이다. `git ls-files`로 확인하는 것을 완료 조건에 넣었다 |
+| Hotel California 픽스처 부재 | Smoke On the Water로 기준 픽스처 확정. Hotel은 운영자 제공 시 보조 측정(AC-BPM-006-OPT). ×2 오검출 검증은 카드 `t10`으로 이관 |
 | 사전 기준선을 측정하지 못함 | 추정값 기입 금지. gap으로 보고하고 사후 기준(AC-BPM-006-AFTER)만 근거로 삼는다 |
 | 국소 보정 임계값이 곡마다 부적절 | 상수 분리 + 보정 건수 로깅. 조정은 후속 SPEC |
 
@@ -234,6 +282,10 @@ python scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the
 - confidence가 낮아졌다고 공식을 손보는 것 — REQ-BPM-007로 동결. 낮아진 값이 정직한 값이다.
 - 프론트엔드에 `engine` 표시 UI를 "간 김에" 추가하는 것 — spec.md 11절 범위 외.
 - 드리프트 측정을 스크립트 없이 눈대중으로 대신하는 것 — AC-BPM-005는 스크립트의 실제 출력을 요구한다.
+- 이미 있는 측정 스크립트를 무시하고 백지에서 다시 쓰는 것 — 235행짜리 동작하는 원본이 있다. 다시 쓰면 검증된 측정 정의를 잃는다.
+- madmom에 환경 마커를 붙이는 것 — 3.13.11에서 실제로 동작하므로 마커는 설치를 건너뛰게 만든다. 1.0.0의 지시였고 철회되었다.
+- 맨 `python -c "import madmom"`으로 가용성을 판정하는 것 — shim 없이는 3.13에서 항상 실패한다. 이 명령의 실패를 "madmom 없음"으로 읽으면 분기 B로 잘못 빠진다.
+- 파일이 없다고 단정하기 전에 주 체크아웃을 확인하지 않는 것 — 워크트리에는 untracked 파일이 복제되지 않는다. 1.0.0의 네 오판이 전부 여기서 나왔다.
 
 ---
 
