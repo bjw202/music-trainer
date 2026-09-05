@@ -935,3 +935,78 @@ mutation_exit=0
 않았다.** `requirements.txt`(M6), `scripts/measure_beatgrid_drift.py`(순수 함수가 이미 노출되어
 있어 수정이 필요 없었다), spec/plan/acceptance 본문은 손대지 않았다. 이 작업이 건드린 파일은
 `backend/tests/test_beatgrid_drift.py`, 신규 픽스처 1개, 이 `progress.md` 셋이다.
+
+---
+
+## run 레인 독립 검증 — AC-BPM-005 (b)(d)(e), AC-BPM-006-AFTER
+
+담당 에이전트의 보고를 신뢰하지 않고 오케스트레이터(run 레인)가 직접 재실행한 결과다.
+작업 디렉터리 `/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1`,
+인터프리터 `/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python`
+(`sys.version` 3.13.11). 매 측정 전 `/tmp/bpm_cache`를 `shutil.rmtree`로 비웠다.
+
+### AC-BPM-005 (b) — JSON 10키 계약 + stdout 오염 검사 [P]
+
+```
+run_exit=0
+STDOUT CLEAN (단일 JSON 문서로 파싱됨)
+KEYS OK {"max_drift_ms": 0.0, "last_beat_drift_ms": 0.0, "mean_drift_ms": 0.0,
+         "beat_count": 721, "matched_count": 721, "inserted_count": 0, "dropped_count": 0,
+         "engine": "madmom", "service_inserted": 0, "service_dropped": 0}
+keys_exit=0
+
+--- stderr ---
+  감지기 원본 획득 중 (madmom RNN + DBN)...
+  캐시를 사용한다 — 결과가 이전 실행으로 가려질 수 있다. --no-cache 로 우회한다.
+```
+
+**PASS.** 계약 키 10개가 모두 존재하고, stdout은 JSON 문서 하나만 담았다(안내 문구가 섞였다면 `json.loads`가 `JSONDecodeError`로 실패한다). 진행 안내는 전부 stderr로 갔다.
+
+### AC-BPM-005 (e) — `APP_DIR` 비의존 [P]
+
+```
+$ unset APP_DIR && <interpreter> scripts/measure_beatgrid_drift.py "<기준 픽스처>" --json > /tmp/t1-noappdir.json
+exit=0
+STDOUT CLEAN (단일 JSON 문서로 파싱됨)
+```
+
+**PASS.** 정규화 (a)가 실제로 이루어졌다.
+
+### AC-BPM-005 (d) — 오류 경로 [P]
+
+```
+$ <interpreter> scripts/measure_beatgrid_drift.py /nonexistent/file.mp3
+exit=4
+STDERR_HAS_MESSAGE
+STDOUT_EMPTY
+```
+
+**PASS.** 0이 아닌 exit, 메시지는 stderr, stdout은 비어 있다.
+
+### AC-BPM-006-AFTER — 사후 기준 [P]
+
+```
+$ <interpreter> scripts/measure_beatgrid_drift.py "<기준 픽스처>" --threshold-ms 1.0
+after_exit=0
+
+  감지기 유래 비트   : 721
+  삽입 비트          : 0  (서비스 보고: 0)
+  제거 비트          : 0  (서비스 보고: 0)
+  최대 이탈          : 0.000 ms
+  마지막 비트 이탈   : 0.000 ms
+  평균 이탈          : 0.000 ms
+  임계               : 1.000 ms
+```
+
+**PASS.** 스크립트의 임계 판정 자체가 exit code이며 `0`이다. 사전 기준선 360.000ms → 사후 0.000ms.
+
+삽입·제거가 0인 것은 이 곡에서 국소 보정이 한 번도 발동하지 않았다는 뜻이다. 그 값이 서비스가 실제로 보고한 것임은 표의 "(서비스 보고: 0)" 병기와, 인터페이스가 없을 때 스크립트가 `exit 4`로 중단한다는 사실로 뒷받침된다 — 스크립트가 0으로 때운 것이 아니다. 삽입·제거 경로 자체의 검증은 AC-BPM-002의 합성 입력 테스트가 담당한다.
+
+### 전체 스위트 (A안 이후)
+
+```
+$ cd backend && <interpreter> -m pytest tests/ -q
+145 passed, 8 warnings in 0.53s
+```
+
+이전 37초에서 0.53초로 줄었다. 골든 대조가 실오디오·madmom 추론을 더 이상 타지 않는다는 A안의 근거가 실행 시간으로도 관측된다.
