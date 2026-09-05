@@ -4,6 +4,8 @@
  * 백엔드 BPM 분석 API와 통신하는 모듈입니다.
  */
 
+import { apiClient } from './client'
+
 /**
  * BPM 분석 응답 타입
  */
@@ -12,18 +14,18 @@ export interface BpmAnalysisResponse {
   beats: number[]
   confidence: number
   file_hash: string
+  /** 사용된 감지 엔진 ("madmom" | "librosa"). 구버전 백엔드 배포 시차를 견디도록 선택 필드 */
+  engine?: string
 }
 
 /**
- * API 기본 URL
- */
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
-
-/**
  * 엔드포인트 경로
+ *
+ * 베이스 URL은 client.ts가 단독으로 소유합니다.
+ * 여기서 별도 환경변수를 읽지 마세요 (분기 재발 방지).
  */
 const ENDPOINTS = {
-  ANALYZE: `${API_BASE_URL}/api/v1/bpm/analyze`,
+  ANALYZE: apiClient.getFullUrl('/bpm/analyze'),
 } as const
 
 /**

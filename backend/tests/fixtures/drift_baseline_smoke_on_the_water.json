@@ -1,0 +1,28 @@
+{
+  "_comment": "SPEC-BPM-003 M3 PRESERVE 골든 픽스처. 포팅 원본(metronome-update-plan-docs/tools/measure_beatgrid_drift.py, git untracked)을 기준 픽스처에 대해 1회 실행해 얻은 값이다. 포팅본이 --legacy-index-diff 모드에서 이 값을 재현하는지 test_ported_matches_original_golden 이 판정한다. 허용 오차를 넘는 차이는 실패이며 면제 조항은 없다.",
+  "fixture_audio": "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3",
+  "beat_count": 721,
+  "max_drift_ms": 360.0,
+  "last_beat_drift_ms": 240.0,
+  "last_beat_drift_ms_signed_as_printed": -240.0,
+  "tolerances": {
+    "beat_count": 0,
+    "max_drift_ms": 0.5,
+    "last_beat_drift_ms": 0.5
+  },
+  "provenance": {
+    "source_script": "metronome-update-plan-docs/tools/measure_beatgrid_drift.py",
+    "command": "APP_DIR=<worktree-root> SONGS=<worktree-root>/music-source/Deep Purple  Smoke On the Water Official Music Video.mp3 <backend-runtime-interpreter> <main-checkout>/metronome-update-plan-docs/tools/measure_beatgrid_drift.py",
+    "interpreter_version": "3.13.11 (main, Dec 17 2025, 20:55:16) [Clang 21.1.4 ]",
+    "app_dir": "worktree .claude/worktrees/t1 (측정 대상 코드는 워크트리의 것)",
+    "run_started_utc": "2026-09-05T13:29:04Z",
+    "head_commit": "1073c11",
+    "raw_output_lines": [
+      "길이 374.1s · 비트 721개",
+      "최대 이탈       :    360.0 ms  (@ 202.7s)",
+      "마지막 비트 이탈:   -240.0 ms",
+      "30ms 초과 비트 : 682/721 = 94.6%"
+    ],
+    "note": "원본은 이탈을 부호 있는 값으로 1자리까지 출력한다. 포팅본은 절대값을 보고하므로 last_beat_drift_ms 는 240.0 이고, 원본이 인쇄한 부호 있는 값은 last_beat_drift_ms_signed_as_printed 로 함께 남긴다."
+  }
+}

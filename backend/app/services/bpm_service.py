@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +70,14 @@ class BpmResult:
     beats: list[float]
     confidence: float
     file_hash: str
+    engine: str  # 사용된 감지 엔진 ("madmom" | "librosa"). 기본값 없음 — "모름" 전파 방지
+
+    # 국소 보정 건수 {"inserted": int, "dropped": int} (SPEC-BPM-003 spec.md 4.1절).
+    # 직렬화하지 않는다 — 캐시·API 스키마의 키 집합은 위 5개로 고정이다. 캐시에서
+    # 복원된 결과는 None이며, 이는 "그 실행에서 보정 건수를 관측하지 않았다"는 사실이다.
+    repair_counts: dict[str, int] | None = field(
+        default=None, compare=False, repr=False
+    )
 
     def to_dict(self) -> dict[str, Any]:
         """딕셔너리로 변환합니다."""
@@ -78,6 +86,7 @@ class BpmResult:
             "beats": self.beats,
             "confidence": self.confidence,
             "file_hash": self.file_hash,
+            "engine": self.engine,
         }
 
 
@@ -117,48 +126,91 @@ def _calculate_confidence(beats: np.ndarray) -> float:
     return float(confidence)
 
 
-def _smooth_beats(beats: np.ndarray, window_size: int = 8) -> np.ndarray:
-    """비트 간격에 이동 중앙값 필터를 적용하여 이상치를 제거합니다.
+# 국소 보정 임계값 (SPEC-BPM-003 REQ-BPM-002).
+# 경험값이며 유도된 상수가 아니다 — 후속 SPEC에서 조정할 수 있도록 모듈 상수로 둔다.
+REPAIR_GAP_RATIO = 1.75  # 간격이 국소 중앙값의 이 배 이상이면 누락으로 보고 보간한다
+REPAIR_DUPLICATE_RATIO = 0.50  # 이 배 이하이면 중복으로 보고 뒤쪽 비트를 제거한다
+REPAIR_WINDOW_SIZE = 8  # 국소 중앙값을 구하는 창의 폭 (4/4 기준 두 마디)
 
-    인트로 등 비트 감지가 불안정한 구간의 바운싱을 완화하면서
-    곡 전체의 템포 변화는 유지합니다.
+
+def _repair_beats(
+    beats: np.ndarray, window_size: int = REPAIR_WINDOW_SIZE
+) -> tuple[np.ndarray, dict[str, int]]:
+    """비트 그리드를 국소 보정합니다 (누락 보간 / 중복 제거).
+
+    비트 위치를 간격의 누적 합산으로 다시 쌓던 이전의 전역 재구성 방식과 달리,
+    **살아남은 원본 비트를 이동시키지 않습니다.**
+    국소 중앙값은 오직 판정에만 쓰이며 어떤 비트의 위치도 대체하지 않습니다
+    (SPEC-BPM-003 REQ-BPM-002-INV).
 
     Args:
-        beats: 원본 비트 타임스탬프 배열 (초 단위).
-        window_size: 이동 중앙값 윈도우 크기 (기본값: 8비트).
+        beats: 감지기 원본 비트 타임스탬프 배열 (초 단위).
+        window_size: 국소 중앙값 판정 창의 폭.
 
     Returns:
-        스무딩된 비트 타임스탬프 배열.
+        (보정된 비트 배열, {"inserted": 삽입 건수, "dropped": 제거 건수}) 튜플.
+        건수는 로그뿐 아니라 반환값으로도 노출됩니다 — 드리프트 측정 스크립트가
+        자신의 분류 건수와 기계적으로 대조해야 하기 때문입니다 (spec.md 4.1절).
     """
+    counts = {"inserted": 0, "dropped": 0}
+
     if len(beats) < 4:
-        return beats
+        return beats, counts
 
     intervals = np.diff(beats)
-    smoothed_intervals = np.copy(intervals)
-
     half_w = window_size // 2
+
+    repaired: list[float] = [float(beats[0])]
+
     for i in range(len(intervals)):
         start = max(0, i - half_w)
         end = min(len(intervals), i + half_w + 1)
-        smoothed_intervals[i] = np.median(intervals[start:end])
+        local_median = float(np.median(intervals[start:end]))
+        gap = float(intervals[i])
 
-    # 스무딩된 간격으로 비트 위치 재구성 (첫 비트 위치 유지)
-    smoothed_beats = np.zeros(len(beats))
-    smoothed_beats[0] = beats[0]
-    for i in range(len(smoothed_intervals)):
-        smoothed_beats[i + 1] = smoothed_beats[i] + smoothed_intervals[i]
+        if local_median <= 0.0:
+            repaired.append(float(beats[i + 1]))
+            continue
 
-    return smoothed_beats
+        if gap >= REPAIR_GAP_RATIO * local_median:
+            # 누락 보간: 간격 안쪽만 등간격으로 채운다. 양 끝 원본 비트는 그대로 둔다.
+            missing = int(round(gap / local_median)) - 1
+            if missing > 0:
+                step = gap / (missing + 1)
+                base = float(beats[i])
+                for k in range(1, missing + 1):
+                    repaired.append(base + step * k)
+                counts["inserted"] += missing
+            repaired.append(float(beats[i + 1]))
+        elif gap <= REPAIR_DUPLICATE_RATIO * local_median:
+            # 중복 제거: 뒤쪽 비트를 결과에 넣지 않는다. 앞쪽 비트는 이미 들어가 있다.
+            counts["dropped"] += 1
+        else:
+            repaired.append(float(beats[i + 1]))
+
+    logger.info(
+        "Beat grid repaired: inserted=%d, dropped=%d (in=%d, out=%d)",
+        counts["inserted"],
+        counts["dropped"],
+        len(beats),
+        len(repaired),
+    )
+
+    return np.asarray(repaired, dtype=float), counts
 
 
-def _detect_with_madmom(audio_path: str) -> tuple[float, np.ndarray, float]:
+def _detect_with_madmom(
+    audio_path: str,
+) -> tuple[float, np.ndarray, float, dict[str, int]]:
     """madmom으로 BPM과 비트를 감지합니다.
 
     Args:
         audio_path: 오디오 파일 경로.
 
     Returns:
-        (bpm, beats, confidence) 튜플.
+        (bpm, beats, confidence, repair_counts) 튜플.
+        `repair_counts`는 국소 보정 건수이며, 드리프트 측정 스크립트가 자신의
+        분류 건수와 대조하는 데 쓰입니다 (SPEC-BPM-003 spec.md 4.1절).
     """
     # RNN 기반 비트 활성화 함수 추출
     act = RNNBeatProcessor()(audio_path)
@@ -168,19 +220,19 @@ def _detect_with_madmom(audio_path: str) -> tuple[float, np.ndarray, float]:
     beats = proc(act)
 
     if len(beats) < 2:
-        return 0.0, beats, 0.0
+        return 0.0, beats, 0.0, {"inserted": 0, "dropped": 0}
 
-    # 비트 간격 스무딩 (인트로 등 불안정 구간 보정)
-    beats = _smooth_beats(beats)
+    # 국소 보정 (누락 보간 / 중복 제거). 살아남은 원본 비트는 이동하지 않는다.
+    beats, repair_counts = _repair_beats(beats)
 
     # BPM 계산 (중앙값 사용 - 이상치에 강건)
     intervals = np.diff(beats)
     bpm = 60.0 / np.median(intervals)
 
-    # 신뢰도 계산 (스무딩 후 재계산)
+    # 신뢰도 계산 (보정 후 재계산)
     confidence = _calculate_confidence(beats)
 
-    return bpm, beats, confidence
+    return bpm, beats, confidence, repair_counts
 
 
 def _detect_with_librosa(audio_path: str) -> tuple[float, np.ndarray, float]:
@@ -265,6 +317,8 @@ class BpmService:
                 beats=data["beats"],
                 confidence=data["confidence"],
                 file_hash=file_hash,
+                # .get() 금지 — 구 스키마 캐시는 KeyError로 걸러 재분석을 유도한다
+                engine=data["engine"],
             )
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning("Failed to read cache file %s: %s", cache_file, e)
@@ -279,8 +333,10 @@ class BpmService:
         cache_file = self.cache_dir / f"{result.file_hash}.json"
         cache_file.write_text(json.dumps(result.to_dict(), indent=2))
 
-    def _detect_with_madmom(self, audio_path: str) -> tuple[float, np.ndarray, float]:
-        """madjom으로 BPM 감지 (래퍼 메서드)."""
+    def _detect_with_madmom(
+        self, audio_path: str
+    ) -> tuple[float, np.ndarray, float, dict[str, int]]:
+        """madmom으로 BPM 감지 (래퍼 메서드)."""
         return _detect_with_madmom(audio_path)
 
     def _detect_with_librosa(self, audio_path: str) -> tuple[float, np.ndarray, float]:
@@ -318,11 +374,15 @@ class BpmService:
         # 분석 실행
         try:
             if _MADMOM_AVAILABLE:
-                bpm, beats, confidence = self._detect_with_madmom(str(path))
+                bpm, beats, confidence, repair_counts = self._detect_with_madmom(
+                    str(path)
+                )
                 algorithm = "madmom"
             elif _LIBROSA_AVAILABLE:
                 bpm, beats, confidence = self._detect_with_librosa(str(path))
                 algorithm = "librosa"
+                # librosa 경로는 국소 보정을 거치지 않는다 — 0건이 사실이다.
+                repair_counts = {"inserted": 0, "dropped": 0}
             else:
                 raise RuntimeError(
                     "BPM 분석 라이브러리가 설치되지 않았습니다. "
@@ -335,6 +395,8 @@ class BpmService:
                 beats=[round(float(b), 3) for b in beats.tolist()],
                 confidence=round(confidence, 3),
                 file_hash=file_hash,
+                engine=algorithm,
+                repair_counts=repair_counts,
             )
 
             # 캐시 저장

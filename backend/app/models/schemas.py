@@ -113,3 +113,4 @@ class BpmAnalysisResponse(BaseModel):
     beats: list[float]
     confidence: float
     file_hash: str
+    engine: str  # 사용된 감지 엔진 ("madmom" | "librosa"). 백엔드는 항상 채우므로 필수

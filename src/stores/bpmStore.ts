@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 
+import { analyzeBpm as requestBpmAnalysis } from '../api/bpm'
+
 /**
  * BPM 분석 및 메트로놈 상태 관리를 위한 인터페이스
  */
@@ -26,21 +28,6 @@ export interface BpmState {
 }
 
 /**
- * BPM 분석 API 응답 타입
- */
-interface BpmAnalysisResponse {
-  bpm: number
-  beats: number[]
-  confidence: number
-  file_hash: string
-}
-
-/**
- * 기본 API 베이스 URL
- */
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
-
-/**
  * BPM 분석 및 메트로놈 상태를 관리하는 Zustand 스토어
  */
 export const useBpmStore = create<BpmState>((set, _get) => ({
@@ -63,22 +50,9 @@ export const useBpmStore = create<BpmState>((set, _get) => ({
     })
 
     try {
-      // FormData 생성
-      const formData = new FormData()
-      formData.append('file', file)
-
-      // API 호출
-      const response = await fetch(`${API_BASE_URL}/bpm/analyze`, {
-        method: 'POST',
-        body: formData,
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || `HTTP ${response.status}`)
-      }
-
-      const data: BpmAnalysisResponse = await response.json()
+      // API 호출은 통합 계층(src/api/bpm.ts)에 위임합니다.
+      // 스토어가 직접 fetch를 부르면 베이스 URL 소유자가 둘로 갈라집니다.
+      const data = await requestBpmAnalysis(file)
 
       // 성공 시 결과 저장
       set({
