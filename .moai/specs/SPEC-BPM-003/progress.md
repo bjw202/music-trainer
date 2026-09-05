@@ -1147,3 +1147,220 @@ exit=0
 ```
 
 144 → 147은 신설 3건에 정확히 대응한다.
+
+---
+
+## M6 — 의존성 선언 및 성능 확인
+
+**실행 환경.** 워크트리 `<worktree> = /Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1`, 브랜치 `WT-remove-smooth-beats`. 인터프리터 `/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python`, `sys.version = 3.13.11 (main, Dec 17 2025, 20:55:16) [Clang 21.1.4 ]`. 아래 각 명령 블록에 `pwd`를 함께 적었다.
+
+### requirements.txt 변경
+
+```diff
+  # Test dependencies
+  pytest>=8.3
+  pytest-asyncio>=0.25
++ pytest-cov>=5.0
+
+  # BPM detection dependencies
+  numpy>=1.24.0
+- # madmom>=0.16.1  # Python 3.13 비호환 (Cython 빌드 실패) - librosa fallback 사용
++ # madmom: bpm_service.py 의 3.13/NumPy 2.x 호환 shim 을 거쳐 import 됨
++ madmom>=0.16.1
+  librosa>=0.10.0
+```
+
+환경 마커를 붙이지 않았다 — 백엔드 런타임이 Python 3.13.11이고 그 위에서 madmom이 실제로 동작하므로, `; python_version < "3.13"`은 madmom이 작동하는 바로 그 인터프리터에서 설치를 건너뛰게 만든다(spec.md 0절 정정 3). 낡은 "3.13 비호환 (Cython 빌드 실패)" 주석은 아래 PRE-2 출력과 정면으로 모순되므로 삭제했다.
+
+### 설치 [P] — `pwd = <worktree>`
+
+```
+$ <interpreter> -m pip install -r backend/requirements.txt
+Requirement already satisfied: madmom>=0.16.1 in .../site-packages (from -r backend/requirements.txt (line 27)) (0.16.1)
+Downloading pytest_cov-7.1.0-py3-none-any.whl (22 kB)
+Downloading coverage-7.16.0-cp313-cp313-macosx_11_0_arm64.whl (223 kB)
+Installing collected packages: coverage, pytest-cov
+Successfully installed coverage-7.16.0 pytest-cov-7.1.0
+exit=0
+```
+
+pip이 실제로 한 일은 **`pytest-cov` 7.1.0과 그 의존성 `coverage` 7.16.0 설치 두 건뿐**이다. madmom을 포함한 나머지는 모두 already satisfied였다 — 즉 madmom은 주석 해제 이전부터 이 환경에 설치되어 있었고, 선언이 실제 상태를 뒤늦게 따라간 것이다.
+
+### PRE-2 / AC-BPM-009 (d) — madmom 가용성 [P] — `pwd = <worktree>/backend`
+
+```
+$ <interpreter> -c "import sys; sys.path.insert(0,'.'); from app.services import bpm_service as b; ..."
+MADMOM_AVAILABLE = True
+LIBROSA_AVAILABLE = True
+interpreter = /Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python
+version = 3.13.11 (main, Dec 17 2025, 20:55:16) [Clang 21.1.4 ]
+exit=0
+```
+
+**분기 A.** 선언(`madmom>=0.16.1`, 마커 없음)과 런타임 상태가 일치한다.
+
+### PRE-4 — `pytest-cov` 선언·설치·인자 수용
+
+```
+(a) [W] pwd=<worktree>
+$ grep -n "^pytest-cov" backend/requirements.txt; echo "exit=$?"
+14:pytest-cov>=5.0
+exit=0
+
+(b) [P] pwd=<worktree>
+$ <interpreter> -c "import pytest_cov; print('pytest_cov', pytest_cov.__version__)"; echo "exit=$?"
+pytest_cov 7.1.0
+exit=0
+
+(c) [P] pwd=<worktree>/backend
+$ <interpreter> -m pytest --cov=app/services/bpm_service --collect-only -q tests/test_bpm.py > /dev/null; echo "exit=$?"
+29 tests collected in 0.01s
+exit=0
+```
+
+**세 항목 모두 PASS.** 다만 (c)가 통과했다는 사실이 "이 인자로 커버리지가 측정된다"를 뜻하지 않는다는 점이 AC-BPM-010에서 드러난다 — 아래 참조.
+
+### AC-BPM-009 — 의존성 선언 [W] — `pwd = <worktree>`
+
+```
+$ grep -n "^madmom" backend/requirements.txt; echo "exit=$?"
+27:madmom>=0.16.1
+exit=0
+
+$ grep -n 'python_version' backend/requirements.txt; echo "exit=$?"
+exit=1
+
+$ grep -n "3.13 비호환\|Cython 빌드 실패" backend/requirements.txt; echo "exit=$?"
+exit=1
+
+$ <interpreter> -c "<의존성 파싱 검증>"; echo "exit=$?"
+OK madmom>=0.16.1
+exit=0
+```
+
+**PASS.** (a) 1행, (b) 마커 없음 `exit=1`, (c) 낡은 주석 없음 `exit=1`, 파싱 검증 통과. 세 grep 모두 `exit=2`(검사 불발)가 아님을 확인했다.
+
+### AC-BPM-010 — 백엔드 커버리지 [P] — `pwd = <worktree>/backend`
+
+[HARD] **acceptance.md에 적힌 명령의 `--cov` 인자 철자로는 커버리지가 측정되지 않는다.** 명령을 그대로 실행한 결과:
+
+```
+$ <interpreter> -m pytest tests/ -v --cov=app/services/bpm_service --cov-report=term-missing --cov-fail-under=85; echo "exit=$?"
+147 passed, 8 warnings in 0.72s
+CoverageWarning: Module app/services/bpm_service was never imported. (module-not-imported)
+FAIL Required test coverage of 85% not reached. Total coverage: 0.00%
+exit=1
+```
+
+**이것은 커버리지가 0%라는 뜻이 아니라 측정이 이루어지지 않았다는 뜻이다.** coverage 7.16.0은 `--cov` 값을 모듈 이름으로 해석하며, 슬래시 경로 `app/services/bpm_service`(확장자 없음)는 어떤 모듈에도 대응하지 않아 측정 대상이 비어 버린다. 같은 이유로 `--cov=app/services/bpm_service.py`도 동일한 `module-not-imported` 경고를 내고 0%를 보고한다(확인함).
+
+**PRE-4 (c)가 통과했는데도 이 일이 일어났다는 점이 요점이다.** (c)는 인자가 *거부되지 않는지*만 본다(`error: unrecognized arguments` 부재). 인자가 수용되면서 아무것도 재지 않는 경로는 (c)의 사정거리 밖이다. `--cov-fail-under=85`가 없었다면 이 실행은 exit 0을 내고 "147 passed"만 보였을 것이고, 커버리지 미측정이 통과로 기록되었을 것이다 — acceptance.md가 `--cov-fail-under`를 붙인 이유가 정확히 여기서 작동했다.
+
+**점 표기 모듈 이름으로 같은 대상을 측정한 결과:**
+
+```
+$ <interpreter> -m pytest tests/ -v --cov=app.services.bpm_service --cov-report=term-missing --cov-fail-under=85; echo "exit=$?"
+Name                          Stmts   Miss  Cover   Missing
+app/services/bpm_service.py     159     12    92%   44-45, 57-58, 106, 110, 114, 158, 172-173, 223, 363
+TOTAL                           159     12    92%
+Required test coverage of 85% reached. Total coverage: 92.45%
+147 passed, 8 warnings in 0.67s
+exit=0
+```
+
+**커버리지 92.45% ≥ 85%, 실패·에러 0건, exit=0.** 측정 대상 파일은 `app/services/bpm_service.py`로 동일하다(리포트의 `Name` 열이 그것을 보인다).
+
+**`--cov-fail-under`는 낮추지 않았다.** 바꾼 것은 임계가 아니라 측정 대상 지정 철자 하나이며, 임계는 85 그대로다. 다만 **acceptance.md에 기재된 명령 자체는 exit=1이므로, 그 문장 그대로는 FAIL이다.** 문서 본문 수정은 이 에이전트의 권한 밖이므로 여기 사실만 기록하고 리드에게 보고한다.
+
+미측정 12행: 44-45·57-58(madmom/librosa import 실패 경로), 106·110·114(`_calculate_confidence`의 조기 반환 3개), 158(`_repair_beats`의 4비트 미만 조기 반환), 172-173(국소 중앙값 ≤ 0 방어), 223(madmom 비트 2개 미만), 363(캐시 쓰기 예외 경로).
+
+### AC-BPM-010 — 프론트엔드 회귀 [P] — `pwd = <worktree>`
+
+워크트리 루트의 `node_modules`는 주 체크아웃으로 향하는 심볼릭 링크다(`node_modules -> /Users/byunjungwon/.../guitar-mp3-trainer-v2/node_modules`).
+
+```
+$ npx tsc --noEmit; echo "tsc_exit=$?"
+tsc_exit=0        (출력 없음)
+
+$ npm test -- --run; echo "npm_exit=$?"
+ Test Files  1 failed | 18 passed (19)
+      Tests  1 failed | 259 passed (260)
+npm_exit=1
+```
+
+**FAIL 1건 — `tests/unit/core/MetronomeEngine.test.ts:241`.** 다운비트 주파수가 880이어야 하는데 440이 나온다.
+
+**이 카드의 변경에서 비롯되지 않았다.** 근거는 추정이 아니라 diff다.
+
+```
+$ git diff --stat cfd5475..HEAD -- src/ tests/
+ src/api/bpm.ts | 2 ++
+ 1 file changed, 2 insertions(+)
+
+$ git diff --name-only cfd5475..HEAD | grep -i metronome; echo "exit=$?"
+exit=1
+
+$ git diff --quiet cfd5475..HEAD -- tests/unit/core/MetronomeEngine.test.ts; echo "exit=$?"
+exit=0
+$ git diff --quiet cfd5475..HEAD -- src/core/MetronomeEngine.ts; echo "exit=$?"
+exit=0
+```
+
+이 브랜치가 M1 착수 이전(`cfd5475`) 대비 프론트엔드에서 바꾼 것은 `src/api/bpm.ts` 2행(`engine?: string` 추가)뿐이며, 실패한 테스트 파일과 그 대상 소스는 **양쪽 모두 바이트 단위로 동일하다.** 즉 같은 입력에 같은 결과이므로 이 실패는 브랜치 이전부터 존재한다.
+
+**그러나 AC-BPM-010의 프론트엔드 절은 문장 그대로 FAIL이다** — 기준이 "두 단계 모두 exit=0"이기 때문이다. 선행 결함이라는 사실은 원인 귀속이지 통과 사유가 아니므로, 통과로 표기하지 않고 리드 판단에 넘긴다. 메트로놈은 이 SPEC의 범위 밖이며(spec.md 11절), 수정을 시도하지 않았다.
+
+### AC-BPM-008 — 성능 및 BPM 회귀 [P] — `pwd = <worktree>/backend`
+
+매 회차 `shutil.rmtree('/tmp/bpm_cache', ignore_errors=True)`로 캐시를 비웠다.
+
+**변경 전 (M2 착수 전 측정, 위 「사전 기준선」 절에서 인용):** `elapsed_median = 18.077s`, `bpm = 115.4000`, `confidence = 0.978`.
+
+**변경 후 (5회):**
+
+| 회차 | 소요(s) | BPM | confidence | engine |
+|------|--------|-----|-----------|--------|
+| 1 | 18.491 | 115.4000 | 0.968000 | madmom |
+| 2 | 18.550 | 115.4000 | 0.968000 | madmom |
+| 3 | 18.462 | 115.4000 | 0.968000 | madmom |
+| 4 | 18.632 | 115.4000 | 0.968000 | madmom |
+| 5 | 18.661 | 115.4000 | 0.968000 | madmom |
+
+`elapsed_median = 18.550s`
+
+| 기준 | 허용 | 실측 | 판정 |
+|------|------|------|------|
+| 중앙값 ≤ 변경 전 × 1.05 | ≤ 18.981s | 18.550s (비율 1.0262) | **PASS** |
+| \|bpm_after − 115.4\| ≤ 2.0 | ≤ 2.0 | 0.0000 | **PASS** |
+| 0.0 ≤ confidence ≤ 1.0 | [0, 1] | 0.968000 | **PASS** |
+
+**PASS.** 중앙값이 2.6% 늘었으나 허용폭 5% 안이다. `_smooth_beats`는 O(n·w) 루프였으므로 제거는 순감이 기대값인데 소폭 증가가 관측된 것은 madmom RNN+DBN 추론의 실행 편차로 읽힌다 — 회차 간 산포(18.462~18.661, 폭 0.199s)가 변경 전후 차이(0.473s)와 같은 자릿수이므로, 이 차이를 코드 효과로 귀속할 근거가 없다. 5% 허용폭과 중앙값 비교를 도입한 이유가(감사 D9) 정확히 이 상황이다.
+
+**confidence 0.978 → 0.968.** 예상된 방향이며 실패가 아니다(spec.md 4.2절). 범위 `[0, 1]`을 유지한다. 값이 내려간 것은 감지기 원본의 간격 불균일이 더 이상 평활화로 지워지지 않기 때문이며, 이는 신뢰도가 실제 그리드를 반영하게 되었다는 뜻이다.
+
+### AC-BPM-007 (a) — 착수 시점 SHA 기준 diff [W] — `pwd = <worktree>`
+
+두 기준 SHA 모두에 대해 실행했다.
+
+```
+$ git diff 4ba10a96e820cb68eb9712e6ca952147db97b739..HEAD -- backend/app/services/bpm_service.py \
+    | grep -cE "^[-+].*(def _calculate_confidence|1\.0 - cv|min\(confidence, 0\.8\))"
+0
+
+$ git diff cfd5475..HEAD -- backend/app/services/bpm_service.py \
+    | grep -cE "^[-+].*(def _calculate_confidence|1\.0 - cv|min\(confidence, 0\.8\))"
+0
+```
+
+**PASS.** `cfd5475`는 M1 착수 이전을 가리키므로 이 SPEC의 모든 변경이 diff에 담긴다 — 그럼에도 동결 대상 세 패턴의 변경이 0줄이다. 이 검사가 실제로 실패할 수 있음은 AC-BPM-007 (a-2) 절의 변이 검증이 별도로 보였다.
+
+### GAP — `ruff` 미설치 (미검증)
+
+```
+$ <interpreter> -m ruff --version
+/Users/byunjungwon/.../backend/.venv/bin/python: No module named ruff
+$ command -v ruff; echo "exit=$?"
+exit=1
+```
+
+백엔드 가상환경에도 PATH에도 `ruff`가 없다. 이 카드의 범위 밖이므로 설치하지 않았고, 따라서 **린트는 수행되지 않았다 — 통과가 아니라 GAP이다.**

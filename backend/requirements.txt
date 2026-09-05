@@ -11,6 +11,7 @@ httpx>=0.28
 # Test dependencies
 pytest>=8.3
 pytest-asyncio>=0.25
+pytest-cov>=5.0
 
 # Audio separation dependencies
 demucs>=4.0.1
@@ -22,5 +23,6 @@ aiofiles>=23.0.0
 
 # BPM detection dependencies
 numpy>=1.24.0
-# madmom>=0.16.1  # Python 3.13 비호환 (Cython 빌드 실패) - librosa fallback 사용
+# madmom: bpm_service.py 의 3.13/NumPy 2.x 호환 shim 을 거쳐 import 됨
+madmom>=0.16.1
 librosa>=0.10.0
