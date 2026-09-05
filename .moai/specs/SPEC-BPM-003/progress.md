@@ -707,3 +707,96 @@ M3의 골든 픽스처(`backend/tests/fixtures/drift_baseline_smoke_on_the_water
 - M5: `_smooth_beats` 정의 삭제 (201행)
 - M6: `requirements.txt` (madmom 주석 해제 + `pytest-cov`)
 - 위 블로커에 대한 리드 결정
+
+---
+
+## M4: 특성화 테스트 보강 (PRESERVE)
+
+카드 `t1` / SPEC-BPM-003 / spec.md 6.3절 CT-1~CT-3.
+
+### 실행 환경
+
+| 항목 | 값 |
+|------|-----|
+| 인터프리터 | `/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python` |
+| `sys.version` | `3.13.11 (main, Dec 17 2025, 20:55:16) [Clang 21.1.4 ]` |
+| `pwd` | `/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1` |
+| 캐시 | 측정 전 `shutil.rmtree('/tmp/bpm_cache', ignore_errors=True)`로 비움 |
+
+### 추가·표기한 테스트 3건
+
+| ID | 위치 | 형태 | M5 이후 운명 |
+|----|------|------|------------|
+| CT-1 | `TestCharacterization::test_ct1_smooth_beats_cumulative_reconstruction` | 신규 | **삭제** — `_smooth_beats` 소멸과 함께. 삭제 자체가 결함 제거의 증거이며 회귀가 아니다 (테스트 docstring 첫 줄에 `[M5에서 삭제될 테스트]`로 표시) |
+| CT-2 | `TestCharacterization::test_ct2_detect_with_madmom_returns_detector_output` | 신규 | **유지** |
+| CT-3 | `TestBpmResult::test_bpm_result_to_dict_includes_engine` | 기존 테스트에 CT-3 표기 추가 | **유지** |
+
+**CT-1의 합성 입력.** 0.5초 등간격 40구간에 5개마다 0.9초의 간격 오차를 넣었다. 이동 중앙값이
+소수파인 0.9를 0.5로 눌러 버리고, 눌린 차이 0.4초가 첫 비트부터의 누적 합산으로 이후 전 비트에
+더해진다. 단언은 (a) 첫 비트 불변, (b) 마지막 비트 편차 > 1.0초, (c) 마지막 편차 > 중간 편차
+(누적의 정의) 셋이다.
+
+**CT-2를 사후 형태로 썼다 — 사전 단언을 지어내지 않았다.** spec.md 6.3절 CT-2는 변경 전
+"감지기 원본과 다름" → 변경 후 "국소 보정 대상이 없는 입력에서 같음"으로 뒤집히는 테스트로
+규정한다. 그런데 M2(`1cfd6ab`)가 이미 `_smooth_beats` 호출을 `_repair_beats`로 교체했으므로,
+M4 시점에 참인 명제는 **사후 형태인 "같음"** 이다. 성립하지 않는 사전 단언을 작성하는 것은
+"실패할 수 없는 기준"의 거울상 — 사실이 아닌 기준 — 이므로 하지 않았다. 이 사실은 테스트
+docstring에도 남겼다.
+
+**CT-3은 신규 작성이 아니라 표기다.** 사전 형태(키 4개)는 M1(`1073c11`)이 `engine`을 추가하며
+이미 갱신되었고, 현재 5개 키를 고정하는 테스트가 그 자리에 존재한다. 같은 단언을 한 벌 더 쓰는
+대신 기존 테스트의 docstring에 `CT-3` 식별자와 사후 형태임을 명시했다 — `grep -n "CT-3"`로
+조회된다.
+
+### CT-2 모킹 계층 (spec.md D15) — 준수 증거
+
+패치 대상은 `app.services.bpm_service.RNNBeatProcessor` / `.DBNBeatTrackingProcessor` 둘뿐이며,
+`_detect_with_madmom`은 **실제 코드 그대로 실행된다.** 테스트 본문 안에 자체 확인 단언 3줄을
+두었다.
+
+```python
+assert not isinstance(bpm_service._detect_with_madmom, MagicMock)
+assert isinstance(bpm_service.RNNBeatProcessor, MagicMock)
+assert isinstance(bpm_service.DBNBeatTrackingProcessor, MagicMock)
+```
+
+`create=True`는 madmom 미설치 머신에서도 함수 본문이 실행되게 하려는 것이며, 이 머신에서는
+madmom이 실제로 설치되어 있으므로 우회 경로가 아니다.
+
+**뮤테이션 확인 (일회용 스크립트, 커밋하지 않음).** 모킹 계층이 실제 판정력을 갖는지를 단언
+문구가 아니라 실행으로 확인했다. `_repair_beats`를 "모든 비트를 0.1초 미는" 결함 버전으로
+바꾸고 CT-2를 호출했다.
+
+```
+MUTATION DETECTED (expected): CT-2 failed under broken _repair_beats
+```
+
+CT-2가 실패했다 = `_detect_with_madmom` 본문이 실제로 실행되고 있다. 함수 자체가 패치돼
+있었다면 결함이 관측되지 않고 그대로 통과했을 것이다(기존 `test_detect_with_madmom_success`가
+바로 그 상태다). 확인 후 스크립트는 삭제했다.
+
+### 검증 (관측한 출력)
+
+```
+$ cd backend && <interp> -m pytest tests/test_bpm.py -v
+27 passed, 7 warnings in 0.03s
+  ...
+  tests/test_bpm.py::TestCharacterization::test_ct1_smooth_beats_cumulative_reconstruction PASSED [ 96%]
+  tests/test_bpm.py::TestCharacterization::test_ct2_detect_with_madmom_returns_detector_output PASSED [100%]
+
+$ cd backend && <interp> -m pytest tests/ -q
+1 failed, 144 passed, 8 warnings in 37.16s
+FAILED tests/test_beatgrid_drift.py::test_ported_matches_original_golden
+```
+
+- `test_bpm.py` 27건 전건 통과. `TestConfidenceCalculation::*`는 **무수정 통과**(REQ-BPM-007 동결).
+- 전체 스위트는 M4 직전 기준선 142 passed에서 **144 passed**로 늘었다(신규 2건과 정확히 일치).
+- `1 failed`는 M4 착수 전부터 있던 기존 실패이며 **M4의 산물이 아니다.** 골든 픽스처를 라이브
+  서비스 재실행과 대조하는 구조라 M2의 호출 교체로 불성립이 된 건이다. 리드 결정 대기 중인
+  블로커이므로 손대지 않았다(수정·삭제·xfail 전부 하지 않음).
+
+### 범위 준수
+
+`_smooth_beats` 정의(201행)는 그대로 있다(M5). `requirements.txt`(M6),
+`scripts/measure_beatgrid_drift.py`, `backend/tests/test_beatgrid_drift.py`, spec/plan/acceptance
+본문은 손대지 않았다. M4가 건드린 파일은 `backend/tests/test_bpm.py` 하나와 이 `progress.md`다.
