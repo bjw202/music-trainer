@@ -419,3 +419,21 @@ plan.md가 "1·2는 원본 동작"이라고 적고 있고 원본의 계산 방�
 | `ruff check` | **GAP** | `backend/.venv`에 ruff가 설치되어 있지 않다. `python -m ruff` → `No module named ruff`. 린트를 실행하지 못했으므로 통과로 적지 않는다 |
 | 커버리지 측정 | **GAP** | `pytest-cov` 미설치·미선언(M6 소관). M1과 같은 사유 |
 | AC-BPM-005 (b)(e) 기본 경로 `--json` 실행 | **미실행(차단)** | 위 설계 판단 (1) — `_repair_beats`(M2) 이전에는 기본 분류 경로가 의도적으로 중단한다. M2 완료 후 실행 가능해진다 |
+
+### 커밋 후 추적 확인 (`pwd` = 워크트리 루트)
+
+커밋 `f766655` 이후 실행:
+
+```
+$ git ls-files --error-unmatch scripts/measure_beatgrid_drift.py; echo "tracked_exit=$?"
+scripts/measure_beatgrid_drift.py
+tracked_exit=0
+$ git ls-files --error-unmatch backend/tests/fixtures/drift_baseline_smoke_on_the_water.json; echo "tracked_exit=$?"
+backend/tests/fixtures/drift_baseline_smoke_on_the_water.json
+tracked_exit=0
+$ git ls-files --error-unmatch backend/tests/test_beatgrid_drift.py; echo "tracked_exit=$?"
+backend/tests/test_beatgrid_drift.py
+tracked_exit=0
+```
+
+명시 pathspec으로만 스테이징했다(`git add -A` 미사용). 커밋 후 남은 untracked는 이 카드의 산출물이 아닌 `.claude/agent-memory/manager-spec/`, `.moai/state/`, `backend/.moai/`, `node_modules` 넷뿐이다.
