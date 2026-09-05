@@ -138,7 +138,8 @@ def _repair_beats(
 ) -> tuple[np.ndarray, dict[str, int]]:
     """비트 그리드를 국소 보정합니다 (누락 보간 / 중복 제거).
 
-    전역 재구성(`_smooth_beats`)과 달리 **살아남은 원본 비트를 이동시키지 않습니다.**
+    비트 위치를 간격의 누적 합산으로 다시 쌓던 이전의 전역 재구성 방식과 달리,
+    **살아남은 원본 비트를 이동시키지 않습니다.**
     국소 중앙값은 오직 판정에만 쓰이며 어떤 비트의 위치도 대체하지 않습니다
     (SPEC-BPM-003 REQ-BPM-002-INV).
 
@@ -196,40 +197,6 @@ def _repair_beats(
     )
 
     return np.asarray(repaired, dtype=float), counts
-
-
-def _smooth_beats(beats: np.ndarray, window_size: int = 8) -> np.ndarray:
-    """비트 간격에 이동 중앙값 필터를 적용하여 이상치를 제거합니다.
-
-    인트로 등 비트 감지가 불안정한 구간의 바운싱을 완화하면서
-    곡 전체의 템포 변화는 유지합니다.
-
-    Args:
-        beats: 원본 비트 타임스탬프 배열 (초 단위).
-        window_size: 이동 중앙값 윈도우 크기 (기본값: 8비트).
-
-    Returns:
-        스무딩된 비트 타임스탬프 배열.
-    """
-    if len(beats) < 4:
-        return beats
-
-    intervals = np.diff(beats)
-    smoothed_intervals = np.copy(intervals)
-
-    half_w = window_size // 2
-    for i in range(len(intervals)):
-        start = max(0, i - half_w)
-        end = min(len(intervals), i + half_w + 1)
-        smoothed_intervals[i] = np.median(intervals[start:end])
-
-    # 스무딩된 간격으로 비트 위치 재구성 (첫 비트 위치 유지)
-    smoothed_beats = np.zeros(len(beats))
-    smoothed_beats[0] = beats[0]
-    for i in range(len(smoothed_intervals)):
-        smoothed_beats[i + 1] = smoothed_beats[i] + smoothed_intervals[i]
-
-    return smoothed_beats
 
 
 def _detect_with_madmom(

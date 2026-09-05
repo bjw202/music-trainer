@@ -1,5 +1,5 @@
 {
-  "_comment": "SPEC-BPM-003 AC-BPM-005 (g) 골든 대조용 배열 픽스처. M5(_smooth_beats 삭제) 이전 코드에서 1회 캡처했다. detector 는 감지기 원본(비반올림), emitted_before 는 변경 전 서비스가 실제로 방출하던 그리드(_smooth_beats 적용 후 소수점 3자리 반올림)다. 이 두 배열에 measure_legacy_index_diff 를 적용하면 drift_baseline_smoke_on_the_water.json 의 골든 값이 재현된다. 배열이 고정되어 있으므로 대조는 madmom 과 오디오 파일 없이 결정론적으로 돈다.",
+  "_comment": "SPEC-BPM-003 AC-BPM-005 (g) 골든 대조용 배열 픽스처. M5(전역 재구성 함수 삭제) 이전 코드에서 1회 캡처했다. detector 는 감지기 원본(비반올림), emitted_before 는 변경 전 서비스가 실제로 방출하던 그리드(전역 재구성 적용 후 소수점 3자리 반올림)다. 이 두 배열에 measure_legacy_index_diff 를 적용하면 drift_baseline_smoke_on_the_water.json 의 골든 값이 재현된다. 배열이 고정되어 있으므로 대조는 madmom 과 오디오 파일 없이 결정론적으로 돈다.",
   "fixture_audio": "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3",
   "beat_count": 721,
   "detector": [
@@ -1450,12 +1450,12 @@
   ],
   "provenance": {
     "captured_by": "_capture_golden_arrays_tmp.py (SPEC-BPM-003 card t1, 폐기됨)",
-    "command": "<backend-runtime-interpreter> _capture_golden_arrays_tmp.py  # RNNBeatProcessor() -> DBNBeatTrackingProcessor(fps=100) -> _smooth_beats() -> round(b, 3)",
+    "command": "<backend-runtime-interpreter> _capture_golden_arrays_tmp.py  # RNNBeatProcessor() -> DBNBeatTrackingProcessor(fps=100) -> 전역 재구성(이동 중앙값 + 누적 합산) -> round(b, 3)",
     "interpreter_path": "/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python",
     "interpreter_version": "3.13.11 (main, Dec 17 2025, 20:55:16) [Clang 21.1.4 ]",
     "head_commit": "4e6fe6d",
     "captured_utc": "2026-09-05T14:05:21Z",
-    "code_state": "M5 이전 — _smooth_beats 가 backend/app/services/bpm_service.py 에 아직 존재하는 상태에서 캡처했다. M5 이후에는 재캡처가 불가능하므로 이 배열이 유일한 기록이다.",
+    "code_state": "M5 이전 — 전역 재구성 함수가 backend/app/services/bpm_service.py 에 아직 존재하는 상태에서 캡처했다. M5 이후에는 재캡처가 불가능하므로 이 배열이 유일한 기록이다.",
     "rounding": "emitted_before 에만 round(float(b), 3) 을 적용했다 — BpmService.analyze 가 beats=[round(float(b), 3) ...] 로 방출하기 때문이다. detector 는 드리프트 스크립트의 collect_drift_input 과 동일하게 반올림하지 않는다."
   }
 }

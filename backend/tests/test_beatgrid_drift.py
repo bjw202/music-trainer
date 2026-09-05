@@ -390,11 +390,11 @@ _GOLDEN_ARRAYS_PATH = (
 def test_ported_matches_original_golden_from_arrays() -> None:
     """포팅본이 원본 계산 방식으로 골든 값을 재현하는지 고정 배열로 판정한다.
 
-    입력은 M5(`_smooth_beats` 삭제) 직전에 1회 캡처한 두 배열이다.
+    입력은 M5(전역 재구성 함수 삭제) 직전에 1회 캡처한 두 배열이다.
 
       detector       — 감지기 원본 출력 (madmom RNN + DBN, 비반올림)
       emitted_before — 변경 전 서비스가 실제로 방출하던 그리드
-                       (`_smooth_beats` 적용 후 소수점 3자리 반올림)
+                       (전역 재구성 적용 후 소수점 3자리 반올림)
 
     측정 대상은 순수 함수 `measure_legacy_index_diff` 하나이며, 배열이 고정되어
     있으므로 madmom·오디오 파일·서비스 코드 어느 것에도 의존하지 않는다. 이 테스트가

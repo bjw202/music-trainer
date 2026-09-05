@@ -455,40 +455,6 @@ class TestCharacterization:
     변경 **전**의 동작을 자동 재실행 가능한 형태로 고정한다.
     """
 
-    def test_ct1_smooth_beats_cumulative_reconstruction(self) -> None:
-        """CT-1: `_smooth_beats`의 누적 재구성 성질을 고정한다.
-
-        [M5에서 삭제될 테스트] `_smooth_beats` 함수가 삭제되면 이 테스트도 함께
-        삭제한다. **삭제 자체가 결함 제거의 증거이며 회귀가 아니다**
-        (spec.md 6.3절 CT-1, plan.md M4 "M5 이후 운명 = 삭제").
-
-        합성 비트열: 0.5초 등간격에 5개마다 0.9초의 인위적 간격 오차(주저)를 넣는다.
-        이동 중앙값은 소수파인 0.9를 0.5로 눌러 버리고, 눌린 차이(각 0.4초)가
-        첫 비트부터의 누적 합산으로 이후 모든 비트에 그대로 더해진다. 따라서 출력
-        마지막 비트가 입력 마지막 비트에서 유의미하게 벗어난다.
-        """
-        from app.services.bpm_service import _smooth_beats
-
-        intervals = [0.9 if (i % 5 == 4) else 0.5 for i in range(40)]
-        beats = [0.0]
-        for gap in intervals:
-            beats.append(beats[-1] + gap)
-        original = np.asarray(beats, dtype=float)
-
-        smoothed = _smooth_beats(original)
-
-        # 첫 비트는 유지된다 (전역 재구성의 기준점).
-        assert smoothed[0] == original[0]
-        # 그러나 마지막 비트는 누적 오차만큼 벗어난다.
-        last_deviation = abs(float(smoothed[-1]) - float(original[-1]))
-        assert last_deviation > 1.0, (
-            f"누적 재구성이 관측되지 않았다: 마지막 비트 편차 {last_deviation:.3f}s"
-        )
-        # 편차는 곡 후반부로 갈수록 커진다 (누적의 정의).
-        mid = len(original) // 2
-        mid_deviation = abs(float(smoothed[mid]) - float(original[mid]))
-        assert last_deviation > mid_deviation
-
     def test_ct2_detect_with_madmom_returns_detector_output(
         self, tmp_path: Path
     ) -> None:
@@ -496,7 +462,7 @@ class TestCharacterization:
 
         **사후 형태로 작성했다.** spec.md 6.3절 CT-2는 변경 전 "다름" → 변경 후
         "국소 보정 대상이 없는 입력에서 같음"으로 뒤집히는 테스트로 규정하는데,
-        M2(`1cfd6ab`)가 이미 `_smooth_beats` 호출을 `_repair_beats`로 교체했으므로
+        M2(`1cfd6ab`)가 이미 전역 재구성 호출을 `_repair_beats`로 교체했으므로
         이 시점에 참인 명제는 **"같음"** 이다. 성립하지 않는 사전 단언을 지어내지
         않는다.
 

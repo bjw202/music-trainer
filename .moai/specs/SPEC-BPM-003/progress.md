@@ -1010,3 +1010,78 @@ $ cd backend && <interpreter> -m pytest tests/ -q
 ```
 
 이전 37초에서 0.53초로 줄었다. 골든 대조가 실오디오·madmom 추론을 더 이상 타지 않는다는 A안의 근거가 실행 시간으로도 관측된다.
+
+---
+
+## M5 — `_smooth_beats` 제거 (IMPROVE)
+
+**실행 환경.** 워크트리 `/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1` (브랜치 `WT-remove-smooth-beats`), 인터프리터 `backend/.venv/bin/python`, `sys.version = 3.13.11 (main, Dec 17 2025, 20:55:16) [Clang 21.1.4 ]`. 아래 모든 명령의 `pwd`는 워크트리 루트이며, `cd backend`가 붙은 것은 그 하위 상대 경로다.
+
+### 삭제한 것
+
+| # | 대상 | 위치 | 근거 |
+|---|------|------|------|
+| 1 | `_smooth_beats` 함수 정의 (34행) | `backend/app/services/bpm_service.py` 201-234행 | plan.md M5 삭제 절차 1 |
+| 2 | `TestCharacterization::test_ct1_smooth_beats_cumulative_reconstruction` (34행) | `backend/tests/test_bpm.py` 458-491행 | plan.md M5 절차 4, spec.md 6.3절 CT-1. **삭제 자체가 결함 제거의 증거이며 회귀가 아니다** |
+
+호출부 교체는 M2(`1cfd6ab`)에서 이미 끝나 있었으므로 이 마일스톤에서 건드리지 않았다(plan.md M5 절차 2).
+
+### 문구 정리 — 남아 있던 식별자 참조 4곳
+
+AC-BPM-001의 `grep -rn "_smooth_beats" backend/`는 코드뿐 아니라 주석·docstring·픽스처 메타데이터까지 전수 검색한다. 정의를 지운 뒤에도 다음 4곳이 남아 있어 `exit=0`이었다.
+
+| 파일 | 위치 | 처리 |
+|------|------|------|
+| `backend/app/services/bpm_service.py` | `_repair_beats` docstring | "전역 재구성(`_smooth_beats`)과 달리" → "비트 위치를 간격의 누적 합산으로 다시 쌓던 이전의 전역 재구성 방식과 달리" |
+| `backend/tests/test_bpm.py` | CT-2 docstring | "`_smooth_beats` 호출을" → "전역 재구성 호출을" |
+| `backend/tests/test_beatgrid_drift.py` | 골든 대조 테스트 docstring 2곳 | "M5(`_smooth_beats` 삭제) 직전" → "M5(전역 재구성 함수 삭제) 직전", "(`_smooth_beats` 적용 후 …)" → "(전역 재구성 적용 후 …)" |
+| `backend/tests/fixtures/drift_golden_arrays_smoke_on_the_water.json` | `_comment` 1곳, `provenance.command` / `provenance.code_state` 2곳 | 같은 방식으로 함수명을 동작 서술로 교체 |
+
+**의미는 보존했고, 출처 기록의 정밀도는 한 단계 낮아졌다.** 픽스처의 `provenance.command`는 골든 배열을 캡처한 파이프라인을 적은 칸인데, 그 파이프라인의 한 단계 이름이 이제 코드에 없는 식별자다. 식별자 대신 그 단계가 한 일(이동 중앙값 + 누적 합산)을 적었다. 함수명을 그대로 두는 편이 출처로서는 더 정확하지만, AC-BPM-001은 `backend/` 전수 검색으로 진술되어 있고 픽스처는 그 아래에 있다. **둘을 동시에 만족시킬 수는 없으므로 수용 기준 쪽을 택했고, 그 대가를 여기 적는다.** 배열 값 자체는 손대지 않았다(아래 골든 대조 테스트 통과가 그 증거다).
+
+### AC-BPM-001 — `grep -rn` 부재 검사 [W]
+
+```
+$ pwd
+/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1
+$ grep -rn "_smooth_beats" backend/ ; echo "exit=$?"
+exit=1
+```
+
+**PASS.** 출력 없음, `exit=1`(매치 없음). `exit=2`(검사 불발)가 아님을 확인했다.
+
+### AC-BPM-001 — 변수명 비의존 누적 합산 패턴 검사 [W]
+
+```
+$ grep -rnP '(\w+)\[\s*i\s*\+\s*1\s*\]\s*=\s*\1\[\s*i\s*\]' backend/app/services/bpm_service.py; echo "exit=$?"
+exit=1
+```
+
+**PASS.** `-P`(PCRE)로 실행했다 — 역참조 `\1`은 POSIX ERE에 없어 `-E`는 이 머신에서 `exit=2`를 내며, 그 0건 출력은 "매치 없음"과 구별되지 않는다. `exit=1`이므로 검사가 실제로 수행되었고 매치가 없다.
+
+### 회귀 — 백엔드 전체 스위트 [P]
+
+```
+$ cd backend && <interpreter> -m pytest tests/ -q
+144 passed, 8 warnings in 0.44s
+exit=0
+```
+
+**PASS.** 145 → 144는 CT-1 삭제 1건에 정확히 대응한다. 실패·에러 0건.
+
+### AC-BPM-006-AFTER 재측정 (M5 이후) [P]
+
+```
+$ <interpreter> scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3" --threshold-ms 1.0 --no-cache
+  비트 수            : 721
+  감지기 유래 비트   : 721
+  삽입 비트          : 0  (서비스 보고: 0)
+  제거 비트          : 0  (서비스 보고: 0)
+  최대 이탈          : 0.000 ms
+  마지막 비트 이탈   : 0.000 ms
+  평균 이탈          : 0.000 ms
+  임계               : 1.000 ms
+exit=0
+```
+
+**PASS.** 함수 정의 삭제 후에도 값이 그대로다 — M2의 호출 교체가 이미 드리프트를 없앴고 M5는 죽은 코드를 걷어낸 것이므로, 이 동일성이 예상된 결과다. 캐시는 `--no-cache`로 우회했다(`/tmp/bpm_cache`를 지우는 형태는 이 세션의 명령 가드가 거부한다).
