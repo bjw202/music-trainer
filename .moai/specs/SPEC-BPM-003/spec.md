@@ -1,15 +1,16 @@
 ---
 id: SPEC-BPM-003
 title: 비트그리드 전역 재구성 제거 및 감지기 출력 신뢰
-version: 1.1.0
+version: 1.2.0
 status: draft
-priority: high
+priority: P0
 created: 2026-09-05
 updated: 2026-09-05
 author: jw
 phase: "v0.5.0 target"
 module: backend/app/services/bpm_service.py
 lifecycle: spec-anchored
+tier: M
 tags: bpm, beatgrid, drift, madmom, librosa, ddd
 related_specs:
   - SPEC-BPM-001
@@ -22,10 +23,11 @@ related_specs:
 |------|------|
 | SPEC ID | SPEC-BPM-003 |
 | 상태 | draft |
-| 버전 | 1.1.0 (전제 정정 개정 — 0절 참조) |
+| 버전 | 1.2.0 (계획 감사 iter-1 반영 개정 — 0절 참조) |
 | 작성일 | 2026-09-05 |
 | 최종 수정 | 2026-09-05 |
 | 우선순위 | P0 (High) |
+| Tier | M (spec.md + plan.md + acceptance.md + progress.md) |
 | 선행 SPEC | SPEC-BPM-001 (Completed), SPEC-BPM-002 (Completed) |
 | 개발 방법론 | DDD (ANALYZE-PRESERVE-IMPROVE) |
 | 칸반 카드 | `t1` (class C) |
@@ -55,6 +57,7 @@ related_specs:
 |------|------|------|
 | 1.0.0 | 2026-09-05 | 최초 작성 |
 | 1.1.0 | 2026-09-05 | 전제 네 건 정정 (아래) |
+| 1.2.0 | 2026-09-05 | 독립 계획 감사 iter-1(FAIL 0.70) 지적 반영 (아래) |
 
 ### 1.1.0에서 바로잡은 것
 
@@ -68,6 +71,24 @@ related_specs:
 | 4 | 신규 파일이므로 `new_features: tdd` 분기를 따른다 | 신규 파일이 아니라 기존 코드의 포팅이므로 전제가 바뀌었다. 정정된 판단은 7절 P4 참조 |
 
 madmom이 3.13에서 동작하는 메커니즘도 함께 확정되었다. `bpm_service.py` 23-33행의 호환 shim이 먼저 적용되어야 import가 성공하며, shim을 거치지 않은 맨 `import madmom`은 3.13에서 실패한다(6.1절). 1.0.0이 "과거의 흔적"으로 기록했던 F10은 사실 **현재 madmom을 살아 있게 하는 장치**다.
+
+### 1.2.0에서 바로잡은 것
+
+독립 계획 감사(plan-audit iter-1)가 **FAIL 0.70**(Clarity 0.78 / Completeness 0.80 / **Testability 0.55** / Traceability 0.65)을 냈다. Must-Pass 7항목은 전부 통과했고, 실패 사유는 **수용 기준이 실패할 수 없거나 아예 실행될 수 없다**는 한 갈래였다. 요구사항 본문의 설계 판단(BEFORE/AFTER 분리, `_repair_beats` 존치, confidence 동결)과 범위 경계(Hotel California ×2 이관, Out of Scope 7항목)는 감사에서도 통과 판정을 받았으므로 그대로 둔다.
+
+| # | 감사 지적 | 1.2.0의 처리 |
+|---|----------|-------------|
+| D1 | 수용 기준의 모든 명령이 "워크트리 루트에서 실행"으로 지정됐는데, 워크트리에는 `backend/.venv`·`node_modules`·포팅 원본이 없다 | 실행 계약을 **위치별로 분리**했다. acceptance.md 「실행 계약」과 6.2절 참조 |
+| D2 | AC-006-AFTER(≤1.0ms)가 REQ-BPM-002의 비트 삽입과 구성상 충돌 | 측정 대상을 **감지기 원본 유래 비트로 한정**하고 삽입 비트는 `inserted_count`로 분리 보고하도록 REQ-BPM-005를 재진술 |
+| D3 | 사전 기준선 측정이 M5에 묶여 있는데 M2가 이미 호출을 치움 | 사전 기준선을 **M2 IMPROVE의 선행 조건**으로 이동. plan.md 의존 그래프 수정 |
+| D4 | `pytest-cov` 미설치·미선언이라 AC-010의 커버리지 검증이 실행 불가 | REQ-BPM-006 범위를 **테스트·런타임 의존성 선언**으로 넓혀 `pytest-cov>=5.0`을 포함 |
+| — | AC-007(a)의 `git diff HEAD`가 커밋 이후에는 항상 비어 실패 불가 | diff 기준선을 **착수 시점 SHA**로 고정하고, 공식·상한을 값으로 고정하는 테스트를 신설 (acceptance.md AC-BPM-007) |
+| D11 | librosa 상한 0.8을 `_calculate_confidence` 내부로 오기재 | 실제 위치(`_detect_with_librosa` 186행 정의 안의 208행)로 정정하고 동결 범위가 그 줄을 덮도록 REQ-BPM-007을 다시 썼다 |
+| D12 | `tier:` 미기재 → Tier L 취급 | `tier: M` 명시. **다만 이 리포지터리의 다른 SPEC은 `tier:`를 쓰지 않는다** — 기존 관행 복원이 아니라 새로 도입하는 필드다 |
+| D15·D16 | CT-2의 모킹 계층 미지정, 6.3절 표의 테스트 1건 누락 | 6.3절에서 둘 다 보강 |
+| D18·D19·D20 | 창 폭 8 근거 부재, `priority` 표기 불일치, 사전 임계 100ms 근거 부재 | 각각 근거 기술 / `P0`으로 통일 / 유도 근거 기술 |
+
+**D1은 워크트리 가시성이라는 같은 근본 원인이 이 카드에서 세 번째로 낳은 결함이다.** 1.0.0의 전제 네 건이 첫 번째, 1.1.0이 정정하면서도 수용 기준의 실행 위치는 손대지 않은 것이 두 번째, 그리고 감사가 잡아낸 실행 계약 붕괴가 세 번째다. 앞의 두 번은 "파일이 없다고 잘못 단정"하는 방향이었고, 세 번째는 반대로 "없는 파일을 있다고 전제하고 명령을 짠" 방향이다. 원인은 하나 — **워크트리에는 git이 추적하지 않는 파일이 복제되지 않는다.** 1.2.0은 개별 명령을 고치는 데 그치지 않고 세 문서 전체를 훑어 같은 가정이 남은 자리를 찾았다(추가 발견은 6.2절).
 
 ---
 
@@ -164,6 +185,8 @@ the BPM 서비스 shall 비트 그리드 보정을 국소 보정으로 한정하
 
 국소 중앙값 `m_i`는 `i`를 중심으로 한 폭 8의 창에서 계산하되, **오직 판정에만 쓰이고 어떤 기존 비트의 위치도 대체하지 않는다.**
 
+**폭 8의 근거.** 1.75 / 0.50 임계와 마찬가지로 경험값이며, 유도된 상수가 아니다. 다만 두 가지 제약 사이에서 고른 값이다 — 4/4 기준 두 마디(8박)를 덮으므로 마디 단위 강약 패턴에 휘둘리지 않고, 그러면서도 곡 전체 템포 변화를 평균해 버릴 만큼 넓지는 않다. 원본 `_smooth_beats`의 `window_size` 기본값도 8이었으므로(120행 시그니처), 판정 창의 폭을 바꾸는 것은 본 SPEC의 변경 대상이 아니다 — 바뀌는 것은 창의 **용도**(위치 재생성 → 판정 전용)이지 폭이 아니다. 1.75 / 0.50과 함께 모듈 상수로 분리해 후속 SPEC에서 조정 가능하게 둔다.
+
 ### REQ-BPM-003: 감지 엔진 노출
 
 **When** BPM 분석이 완료되면, the BPM 서비스 shall 사용된 감지 엔진 이름(`"madmom"` 또는 `"librosa"`)을 `engine` 필드로 결과에 포함하고, 이를 API 응답 스키마와 프론트엔드 타입까지 전파한다.
@@ -200,44 +223,79 @@ the 프로젝트 shall 이미 존재하는 `metronome-update-plan-docs/tools/mea
 
 - `emitted[i]` = `BpmService.analyze(path).beats[i]`
 - `detector[j]` = 해당 감지 함수가 반환한 원본 비트(보정·평활화 이전)
-- 각 `emitted[i]`에 대해 가장 가까운 `detector[j]`를 찾아 절대 편차 `|emitted[i] - detector[j]|`를 ms로 계산
-- 보고 항목: `max_drift_ms`, `last_beat_drift_ms`, `mean_drift_ms`, `beat_count`, `engine`
+- `emitted`의 각 원소를 **두 부류로 분류한다.**
+  - **감지기 유래 비트**: 가장 가까운 `detector[j]`와의 절대 거리가 `MATCH_TOLERANCE_MS`(기본 5.0ms) 이내인 원소. 원본 비트가 살아남은 것으로 본다.
+  - **삽입 비트**: 그 밖의 원소. REQ-BPM-002의 누락 보간이 만들어 낸, 감지기가 내놓지 않은 위치다.
+- 드리프트 통계(`max_drift_ms`, `last_beat_drift_ms`, `mean_drift_ms`)는 **감지기 유래 비트에 대해서만** 계산한다. 각 감지기 유래 `emitted[i]`에 대해 최근접 `detector[j]`와의 절대 편차 `|emitted[i] - detector[j]|`를 ms로 낸다.
+- 삽입 비트는 드리프트 통계에 넣지 않고 **건수로만** 보고한다(`inserted_count`). 제거된 비트는 `dropped_count`로 보고한다.
+- 보고 항목: `max_drift_ms`, `last_beat_drift_ms`, `mean_drift_ms`, `beat_count`, `matched_count`, `inserted_count`, `dropped_count`, `engine`
 
-원본 스크립트는 같은 항목을 **인덱스 정렬 차분**(`smoothed - raw`, 두 배열 길이 동일)으로 계산한다. `_smooth_beats`는 비트 개수를 바꾸지 않으므로 그 계산이 성립했다. 반면 REQ-BPM-002의 국소 보정은 비트를 삽입·제거하여 개수를 바꾸므로, 포팅 시 **최근접 대응**으로 일반화해야 한다. 이는 정규화 (a)(b)와 별개로 측정 정의를 유지하기 위해 반드시 필요한 이식 작업이다.
+**왜 삽입 비트를 통계에서 제외하는가 (D2 결정).** 삽입 비트는 정의상 감지기가 내놓지 않은 위치에 놓인다. 한 박이 누락된 구간에 하나를 끼우면 최근접 감지기 비트까지의 거리는 박 간격의 절반 — 120 BPM이면 약 250ms, 90 BPM이면 약 333ms다. `max_drift_ms`는 최댓값이므로 이 한 점이 판정 전체를 지배하고, **국소 보정이 한 번이라도 발동하는 곡에서는 사후 기준이 구성상 반드시 실패한다.** 4.1절이 인트로·브레이크다운에서 madmom이 비트를 놓치는 것을 국소 보정 존치의 근거로 들고 있으므로, 이 발동은 예외가 아니라 예상된 동작이다. 드리프트 지표가 재려는 것은 "감지기가 준 위치를 우리가 얼마나 흔들었는가"이지 "우리가 얼마나 채워 넣었는가"가 아니므로, 두 값을 한 지표에 섞으면 지표가 재는 대상이 흐려진다. 채워 넣은 양은 `inserted_count`가 따로 답한다.
+
+제거(중복 삭제)는 이 지표를 부풀리지 않는다 — 지표가 `emitted`를 순회하므로 사라진 비트는 애초에 보이지 않는다. 문제가 되는 방향은 삽입 하나뿐이었다.
+
+**대안으로 채택하지 않은 것.** "기준 픽스처에서 보정이 발동하지 않음을 선행 확인하고 그대로 최댓값을 쓴다"도 성립하는 선택지였으나 채택하지 않았다. 그러면 삽입 경로가 합성 단위 테스트로만 검증되고, 보정이 발동하는 다른 곡에서 이 스크립트가 쓸 수 없는 도구가 된다. `inserted_count` 분리는 어느 곡에서도 같은 방식으로 읽힌다.
+
+`MATCH_TOLERANCE_MS = 5.0`의 근거: 비트가 소수점 3자리로 반올림되므로 살아남은 원본 비트의 편차 상한은 0.5ms다(4.2절 아래 AC-BPM-006-AFTER 근거와 동일). 5.0ms는 그 상한의 10배로, 반올림 오차는 여유 있게 흡수하면서 삽입 비트가 만드는 수백 ms 거리와는 두 자릿수 차이로 갈린다. 이 상수 역시 모듈 상수로 분리한다.
+
+원본 스크립트는 같은 항목을 **인덱스 정렬 차분**(`smoothed - raw`, 두 배열 길이 동일)으로 계산한다. `_smooth_beats`는 비트 개수를 바꾸지 않으므로 그 계산이 성립했다. 반면 REQ-BPM-002의 국소 보정은 비트를 삽입·제거하여 개수를 바꾸므로, 포팅 시 **최근접 대응 + 위 분류**로 일반화해야 한다. 이는 정규화 (a)(b)와 별개로 측정 정의를 유지하기 위해 반드시 필요한 이식 작업이다.
 
 호출 형태:
 
 ```bash
-python scripts/measure_beatgrid_drift.py <audio-path> [--json]
+python scripts/measure_beatgrid_drift.py <audio-path> [--json] [--threshold-ms 1.0] [--no-cache]
 ```
 
-- 기본 출력은 사람이 읽는 표, `--json`은 기계 판독용 JSON을 stdout에 출력한다.
-- `max_drift_ms`가 임계값(기본 1.0ms)을 넘으면 exit code 1, 아니면 0.
+- 기본 출력은 사람이 읽는 표, `--json`은 기계 판독용 JSON을 **stdout에** 출력한다.
+- 진행 안내·캐시 안내·경고는 **전부 stderr로 보낸다.** stdout은 `--json` 모드에서 JSON 문서 하나만 담는다 — 안내 문구가 섞이면 AC-BPM-005 (b)의 파싱이 깨진다.
+- `max_drift_ms`가 임계값(기본 1.0ms)을 넘으면 exit code 1, 아니면 0. 이 판정은 **감지기 유래 비트의 `max_drift_ms`**에 대해 이루어지며, `inserted_count`는 exit code에 영향을 주지 않는다.
 - 위 `python`은 백엔드 런타임 `backend/.venv/bin/python`(Python 3.13.11)을 뜻한다. madmom이 그 환경에서만 동작하므로, 다른 인터프리터로 돌리면 librosa 경로로 빠져 madmom 드리프트를 재지 못한다.
 
-### REQ-BPM-006: madmom 의존성 선언
+### REQ-BPM-006: 런타임·테스트 의존성 선언
 
-the 프로젝트 shall `backend/requirements.txt`에서 madmom을 **환경 마커 없이** 주석 해제한다.
+the 프로젝트 shall `backend/requirements.txt`에서 (a) madmom을 **환경 마커 없이** 주석 해제하고, (b) 커버리지 측정에 필요한 `pytest-cov`를 선언한다.
 
 ```
 madmom>=0.16.1
+pytest-cov>=5.0
 ```
 
-- **환경 마커를 붙이지 않는다.** 백엔드 런타임은 Python 3.13.11이고 그 위에서 madmom이 실제로 동작한다(F11, F12). `; python_version < "3.13"`을 붙이면 pip가 **madmom이 작동하는 바로 그 인터프리터에서 설치를 건너뛴다.** 1.0.0이 제안했던 마커는 이 이유로 철회한다(0절 정정 3).
+**(b) `pytest-cov` 선언의 근거 (D4).** 8절이 `bpm_service.py` 커버리지 85% 이상을 목표로 잡고 있고 `quality.yaml`의 `min_coverage_legacy`도 85이지만, 이를 재는 유일한 수단인 `pytest --cov=`가 현재 실행되지 않는다.
+
+```
+$ backend/.venv/bin/python -c "import pytest_cov"
+ModuleNotFoundError: No module named 'pytest_cov'
+$ grep -n pytest backend/requirements.txt
+12:pytest>=8.3
+13:pytest-asyncio>=0.25
+```
+
+선언도 설치도 없으므로 `--cov=` 인자는 `error: unrecognized arguments`로 즉시 실패하고, 커버리지 목표 전체가 검증되지 않은 채 남는다. 1.1.0까지 이 의존성 추가를 요구하는 요구사항이 SPEC 어디에도 없었으므로, 본 요구사항의 범위를 madmom 한 줄에서 **본 SPEC의 수용 기준을 실행하는 데 필요한 의존성 선언**으로 넓힌다. 선언만으로는 부족하므로 설치 확인까지 acceptance.md PRE-4에서 기계 검증한다.
+
+- **madmom에 환경 마커를 붙이지 않는다.** 백엔드 런타임은 Python 3.13.11이고 그 위에서 madmom이 실제로 동작한다(F11, F12). `; python_version < "3.13"`을 붙이면 pip가 **madmom이 작동하는 바로 그 인터프리터에서 설치를 건너뛴다.** 1.0.0이 제안했던 마커는 이 이유로 철회한다(0절 정정 3).
 - 기존 주석 "Python 3.13 비호환 (Cython 빌드 실패)"는 설치되어 import까지 성공하는 현 상태와 모순되므로 **삭제하거나 사실에 맞게 고쳐 쓴다.** 그대로 남겨 두면 다음 독자가 같은 오판을 반복한다.
 - madmom import는 `bpm_service.py` 23-33행 shim에 의존한다(F10). 이 사실을 주석으로 남기는 것은 허용되며 권장된다.
 
 ### REQ-BPM-007: confidence 공식 동결 (설계 결정)
 
-the BPM 서비스 shall `_calculate_confidence`의 공식과 상한(librosa 0.8)을 본 SPEC에서 변경하지 않는다.
+the BPM 서비스 shall 아래 **두 지점**을 본 SPEC에서 변경하지 않는다.
+
+| # | 동결 대상 | 위치 (워크트리 HEAD `15c363b` 기준) |
+|---|----------|--------------------------------|
+| (1) | 신뢰도 공식 `confidence = max(0.0, min(1.0, 1.0 - cv))` | `_calculate_confidence` (84행 정의) 안의 **115행** |
+| (2) | librosa 경로의 보수적 상한 `confidence = min(confidence, 0.8)` | **`_detect_with_librosa`(186행 정의) 안의 208행** |
+
+**(2)의 위치를 1.2.0에서 정정했다 (D11).** 1.1.0은 상한 0.8을 `_calculate_confidence` 내부에 있는 것으로 적었으나, 실제로는 그 함수 밖 — librosa 감지 함수가 자기 결과에 덧씌우는 별개의 줄이다. 두 함수는 코드상 100행 넘게 떨어져 있으므로, 동결 대상을 "`_calculate_confidence`의 공식과 상한"으로 묶어 쓰면 208행이 형식적으로 동결 범위 밖에 남는다. 위 표는 두 지점을 각각의 함수와 행 번호로 지목해 그 틈을 닫는다. 두 지점 모두 acceptance.md AC-BPM-007에서 값 고정 테스트로 기계 검증한다.
 
 근거는 4.2절에 기술한다. 이는 명시적 설계 결정이며, 구현 세부의 누락이 아니다.
 
 ### REQ-BPM-008: 성능 회귀 금지
 
-the BPM 서비스 shall 본 변경 이후 분석 소요 시간이 변경 전 대비 증가하지 않는다.
+the BPM 서비스 shall 본 변경 이후 분석 소요 시간의 **중앙값**이 변경 전 중앙값의 1.05배를 넘지 않는다.
 
-`_smooth_beats`는 O(n·w) 루프였으므로 제거는 순감이며, 국소 보정도 동일 복잡도 이하다.
+`_smooth_beats`는 O(n·w) 루프였으므로 제거는 순감이며, 국소 보정도 동일 복잡도 이하다. 따라서 실제 기대값은 "증가 없음"이다.
+
+**5% 허용폭과 중앙값을 쓰는 이유 (D9).** 1.1.0은 요구사항을 "증가하지 않는다"(허용폭 0%)로 쓰고 수용 기준은 `* 1.05`(5%)로 써서 두 문서가 어긋나 있었다. 어긋남을 없애면서 5% 쪽으로 맞춘 것은 측정 현실 때문이다 — madmom RNN+DBN 추론은 실행마다 수백 ms 단위로 흔들리므로, **1회 측정의 0% 판정은 코드가 아니라 그날의 머신 부하를 재게 된다.** 따라서 (1) 허용폭을 5%로 명시하고, (2) 변경 전/후 각 **5회 이상** 측정한 뒤 중앙값끼리 비교한다. 회차별 원시 값은 전부 `progress.md`에 남긴다. 이 기준은 실제로 실패할 수 있다 — 국소 보정이 O(n²) 같은 형태로 잘못 구현되면 중앙값이 5%를 넘긴다.
 
 ---
 
@@ -283,7 +341,7 @@ madmom의 DBN 비트 트래커는 인트로·브레이크다운 구간에서 비
 | `backend/app/services/bpm_service.py` | `_smooth_beats` 삭제(120-151), 174행 호출 제거, `_repair_beats` 신설, `BpmResult.engine` 추가, `to_dict()`·`_get_cached_result` 확장 | 높음 | 약 -32 / +45행 |
 | `backend/app/models/schemas.py` | `BpmAnalysisResponse.engine: str` 추가 (109행 부근) | 낮음 | +1행 |
 | `src/api/bpm.ts` | `BpmAnalysisResponse.engine?: string` 추가 | 낮음 | +1행 |
-| `backend/requirements.txt` | madmom 주석 해제 (환경 마커 없음) + 낡은 비호환 주석 정리 | 낮음 | 1-2행 수정 |
+| `backend/requirements.txt` | madmom 주석 해제 (환경 마커 없음) + 낡은 비호환 주석 정리 + `pytest-cov>=5.0` 추가 | 낮음 | 2-3행 수정 |
 
 ### 5.2 포팅 파일
 
@@ -334,7 +392,45 @@ cd backend && .venv/bin/python -c "import sys; sys.path.insert(0,'.'); from app.
 - `bpm_service.py` 23-33행의 3.13 / NumPy 2.x shim(F10)은 과거의 흔적이 아니라 **현재 madmom을 3.13에서 동작시키는 장치**다. 1.0.0이 기록한 "불일치"는 실재하지 않았다.
 - 검증 명령은 **실제로 백엔드를 실행하는 인터프리터**(`backend/.venv/bin/python`)에서 돌리고, 실행자는 사용한 인터프리터 경로를 evidence에 함께 남긴다.
 
+### 6.2.1 실행 위치 (1.2.0 신설 — D1)
+
+같은 워크트리 가시성 문제가 이 카드에서 **세 번째로** 낳은 결함이다(0절 1.2.0). 이번에는 방향이 반대였다 — 1.1.0은 파일이 존재한다는 것까지 바로잡고도, 수용 기준의 명령은 여전히 "모두 워크트리 루트에서 실행"으로 두었다. 워크트리에 없는 자산을 워크트리에서 쓰라고 지시한 셈이다.
+
+워크트리 `.claude/worktrees/t1`에서 직접 확인한 것:
+
+```bash
+$ ls -d backend/.venv            → No such file or directory
+$ ls -d node_modules             → No such file or directory
+$ ls -d metronome-update-plan-docs → No such file or directory
+```
+
+따라서 본 SPEC의 검증 명령은 **두 그룹으로 나뉜다.**
+
+| 그룹 | 필요한 것 | 실행 위치 |
+|------|----------|----------|
+| **W (워크트리 가능)** | git으로 추적되는 파일만 — `git`, `grep`, `test -f`, `ls` | 워크트리 루트, 주 체크아웃 어느 쪽이든 |
+| **P (주 체크아웃 전용)** | untracked 자산 — `backend/.venv`(Python·pytest·madmom), `node_modules`(`npx tsc`·`npm test`), 포팅 원본 `metronome-update-plan-docs/tools/measure_beatgrid_drift.py` | 주 체크아웃 `/Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2` |
+
+그룹별 명령 목록과 각 명령이 어디서 도는지는 acceptance.md 「실행 계약」이 기준이다. 대안(워크트리에 `.venv`와 `node_modules`를 프로비저닝하는 PRE-0)은 채택하지 않았다 — madmom이 도는 3.13.11 환경을 워크트리에서 재구성하는 절차 자체가 이 카드보다 크고, 그 절차의 성공 여부를 다시 검증해야 하기 때문이다.
+
+**1.2.0의 훑기에서 추가로 찾은 자리** (감사가 열거하지 않은 것):
+
+1. **plan.md M3의 ANALYZE 표와 PRESERVE 단계 전체**가 주 체크아웃 전용이다. 감사는 AC-005 (g)의 원본 대조만 지적했으나, 원본 스크립트의 행 번호를 읽는 ANALYZE와 원본을 실행해 출력을 기록하는 PRESERVE도 같은 파일을 필요로 한다. M3은 마일스톤 단위로 주 체크아웃에 묶인다.
+2. **`/tmp/bpm_cache`는 워크트리·주 체크아웃이 공유하는 머신 전역 경로다.** 워크트리 격리가 캐시에는 적용되지 않으므로, 한쪽에서 만든 캐시가 다른 쪽 측정을 가릴 수 있다. PRE-1의 `rm -rf`가 이미 이를 막지만, "워크트리를 갈아도 캐시는 남는다"는 사실 자체를 기록해 둔다.
+3. **기준 픽스처 오디오는 git으로 추적되므로 워크트리에 존재한다** — `git ls-files music-source`로 확인. 이 하나는 P 그룹이 아니다. 픽스처가 없다는 오판이 나오지 않도록 명시한다.
+
 ### 6.3 특성화 테스트 (DDD PRESERVE 단계)
+
+**PRESERVE의 정의 (1.2.0에서 통일 — D6).** 본 SPEC에서 PRESERVE는 **오직 하나를 뜻한다 — 현재 동작을 자동으로 재실행 가능한 특성화 테스트로 고정하는 것.** 사람이 값을 읽어 `progress.md`에 적는 행위는 PRESERVE가 아니라 그 값의 **출처 기록(provenance)** 이다. 1.1.0은 이 절에서는 특성화 테스트로, plan.md M3에서는 수기 기록으로 서로 다르게 썼고, 그 어긋남이 AC-BPM-005 (g)를 "차이가 있어도 원인만 적으면 통과"하는 실패 불가 기준으로 만들었다.
+
+두 대상에 같은 정의를 적용한다.
+
+| 대상 | PRESERVE의 구체 형태 | `progress.md`의 역할 |
+|------|--------------------|-------------------|
+| `bpm_service.py`의 기존 동작 | 아래 CT-1~CT-3 (자동 테스트) | 실행 출력 첨부 |
+| 포팅 대상 측정 스크립트 (M3) | 원본을 1회 실행해 얻은 출력을 **골든 픽스처 파일로 리포지터리에 커밋**하고(`backend/tests/fixtures/drift_baseline_smoke_on_the_water.json`), 포팅본이 그 값을 재현하는지 단언하는 자동 테스트 | 골든 픽스처를 만든 실행의 명령·출처·인터프리터 기록 |
+
+포팅본은 원본의 계산 방식(인덱스 정렬 차분)을 그대로 재현하는 `--legacy-index-diff` 모드를 갖는다. 골든 대조는 이 모드로 수행되므로, **"포팅이 측정을 바꿨는가"와 "최근접 대응 일반화가 값을 바꿨는가"가 분리된다.** 전자는 골든 테스트가 판정하고(차이가 있으면 곧바로 실패 — 원인을 적는 것으로 면제되지 않는다), 후자는 M3 DDD 코어의 합성 입력 테스트(케이스 1·2)가 결정론적으로 판정한다.
 
 `backend/tests/test_bpm.py`에서 현재 고정(pin)되어 있는 동작:
 
@@ -342,6 +438,7 @@ cd backend && .venv/bin/python -c "import sys; sys.path.insert(0,'.'); from app.
 |------------|-------------|--------------|
 | `TestBpmResult::test_bpm_result_creation` / `test_bpm_result_to_dict` | 4개 필드 구성과 `to_dict()` 키 집합 | **깨진다.** `engine` 추가로 갱신 필요 |
 | `TestCaching::test_save_and_get_cached_result` / `test_cache_file_format` | 캐시 왕복과 JSON 키 | **깨진다.** `engine` 포함하도록 갱신 필요 |
+| `TestMadmomDetection::test_detect_with_madmom_success` (`test_bpm.py:166`) | 이름과 달리 madmom 감지 **내부 동작을 고정하지 않는다.** `app.services.bpm_service._detect_with_madmom`을 통째로 `patch`하고 그 모킹된 반환값 `(120.0, [0.5, 1.0, 1.5], 0.95)`를 그대로 단언한다 | **영향 없음.** 모킹이 함수 자체를 대체하므로 그 안의 `_smooth_beats` 호출은 애초에 실행되지 않는다. `_smooth_beats`를 지워도 이 테스트는 그대로 통과한다 — 즉 이 테스트는 본 변경에 대한 안전망이 **아니다.** 그 공백을 메우는 것이 아래 CT-2다 |
 | `TestMadmomDetection::test_detect_falls_back_to_librosa` | madmom 부재 시 librosa 폴백 | 유지 (`result.engine == "librosa"` 단언 추가) |
 | `TestAnalyze::test_analyze_returns_cached_result` | 캐시 히트 경로 | 갱신 필요 |
 | `TestAnalyze::test_analyze_no_library_available` | 라이브러리 전무 시 `RuntimeError` | 영향 없음 |
@@ -352,8 +449,19 @@ cd backend && .venv/bin/python -c "import sys; sys.path.insert(0,'.'); from app.
 | ID | 내용 |
 |----|------|
 | CT-1 | `_smooth_beats`의 누적 재구성 성질을 고정한다. 합성 비트열(등간격 + 인위적 오차)을 입력해, 출력 마지막 비트가 입력 마지막 비트에서 유의미하게 벗어남을 단언 → 제거 후 이 테스트는 삭제되며, 삭제 자체가 결함 제거의 증거가 된다 |
-| CT-2 | 현재 `_detect_with_madmom`(모킹된 감지기 출력 사용)이 반환하는 `beats`가 감지기 원본과 **다름**을 단언 → 변경 후 "같음"으로 뒤집히는 테스트로 전환 |
+| CT-2 | 현재 `_detect_with_madmom`이 반환하는 `beats`가 감지기 원본과 **다름**을 단언 → 변경 후 "같음"으로 뒤집히는 테스트로 전환. **모킹 계층은 아래에 고정한다** |
 | CT-3 | 현재 `BpmResult.to_dict()`의 키 집합이 정확히 4개임을 단언 → 변경 후 5개로 갱신 |
+
+**CT-2의 모킹 계층 (1.2.0에서 명시 — D15).** CT-2는 `app.services.bpm_service` 안의 **`RNNBeatProcessor`와 `DBNBeatTrackingProcessor`를 패치한다.** DBN 처리기의 호출 결과가 합성 비트 배열(등간격 + 인위적 간격 오차)을 반환하도록 두고, `_detect_with_madmom`은 **실제 코드 그대로 실행되게 한다.**
+
+```
+patch("app.services.bpm_service.RNNBeatProcessor")      ← 액티베이션 함수 대체
+patch("app.services.bpm_service.DBNBeatTrackingProcessor") ← 합성 비트 배열 반환
+→ _detect_with_madmom(...) 을 실제로 호출
+→ 반환된 beats 와 위 합성 배열을 비교
+```
+
+기존 `test_detect_with_madmom_success`(위 표)처럼 **`_detect_with_madmom` 자체를 패치하면 안 된다.** 그렇게 하면 함수 본문이 실행되지 않아 `_smooth_beats`를 거치지 않고, "감지기 원본과 다름"이라는 단언이 모킹된 반환값을 자기 자신과 비교하는 공허한 확인이 된다 — CT-2가 아무것도 고정하지 못한다. 검증 대상 코드가 실제로 실행되는 계층에서 모킹하는 것이 CT-2의 성립 조건이다.
 
 ---
 
@@ -388,7 +496,15 @@ cd backend && .venv/bin/python -c "import sys; sys.path.insert(0,'.'); from app.
 **해소:** 두 개의 실패 가능한 기준으로 재진술한다.
 
 1. **사전 기준선(AC-BPM-006-BEFORE):** 변경 전 코드에서 드리프트를 측정해 `max_drift_ms ≥ 100`임을 기록한다. 결함이 실재했다는 증거이며, 측정되지 않으면 gap으로 보고한다.
-2. **사후 기준(AC-BPM-006-AFTER):** 변경 후 `max_drift_ms ≤ 1.0`. 코드가 비트를 소수점 3자리로 반올림하므로 이론적 상한은 0.5ms이며, 1.0ms 임계는 잔여 변환이 하나라도 남아 있으면 실패한다.
+
+   **임계 100ms의 유도 근거 (1.2.0 신설 — D20).** 1.1.0은 이 값을 근거 없이 놓았다. 두 방향에서 끼워 맞춘 값이다.
+   - **아래 경계**: 이 기준이 재는 것은 "누적 합산이 만든 드리프트"이므로, 반올림·부동소수 오차(상한 0.5ms, 사후 기준의 근거와 동일)와 **두 자릿수 이상** 떨어져야 한다. 100ms는 그 상한의 200배다.
+   - **위 경계**: 카드가 기재한 관측값은 마지막 박 약 640ms다(재측정 대상). 임계를 그 값 가까이 올리면, 곡·머신에 따라 드리프트가 300ms대로 나왔을 때 **결함이 실재하는데도 기준이 실패한다.** 640의 약 1/6인 100ms는 관측값이 상당히 작게 나와도 견딘다.
+   - 따라서 100ms는 "반올림 오차보다 압도적으로 크고, 관측된 결함 규모보다는 충분히 작은" 구간에서 고른 값이다. 실측이 이 창을 벗어나면 그 사실 자체가 보고 대상이다 — 값을 사후에 옮기지 않는다.
+
+2. **사후 기준(AC-BPM-006-AFTER):** 변경 후 **감지기 원본에서 유래한 비트**의 `max_drift_ms ≤ 1.0`. 코드가 비트를 소수점 3자리로 반올림하므로 이론적 상한은 0.5ms이며, 1.0ms 임계는 잔여 변환이 하나라도 남아 있으면 실패한다.
+
+   **1.0ms의 근거가 적용되는 범위 (1.2.0에서 한정 — D2).** "소수점 3자리 반올림 → 상한 0.5ms"라는 유도는 **감지기가 내놓은 위치를 그대로 옮겨 담은 비트**에만 성립한다. REQ-BPM-002의 누락 보간이 만든 삽입 비트는 감지기가 내놓지 않은 위치에 놓이므로 반올림 오차와 무관하게 최근접 감지기 비트에서 박 간격의 절반(120 BPM에서 약 250ms)만큼 떨어져 있고, 여기에 1.0ms를 적용하면 국소 보정이 발동하는 순간 기준이 구성상 실패한다. 그래서 REQ-BPM-005의 측정 정의가 두 부류를 나누고, 이 기준은 감지기 유래 비트만 판정한다. 삽입·제거 건수는 별도로 `inserted_count` / `dropped_count`가 보고하며, 그 값이 보정 로그의 건수와 일치하는지를 AC-BPM-006-AFTER가 함께 확인한다.
 
 **테스트 오디오 출처:** git으로 추적되는 오디오는 `music-source/Deep Purple  Smoke On the Water Official Music Video.mp3` 하나뿐이다. 따라서 **기준 픽스처는 Smoke On the Water로 확정**하고, Hotel California는 운영자가 파일을 제공하는 경우에만 보조 측정으로 수행한다(AC-BPM-006-OPT).
 
@@ -405,21 +521,33 @@ Hotel California의 ×2 오검출 검증은 본 SPEC의 범위가 아니라 **�
 | 부분 | 성격 | 적용 분기 | 이유 |
 |------|------|----------|------|
 | 측정 코어 (madmom 감지 → 편차 산출 → 보고) | 기존 동작 코드의 이식 | **DDD** (`legacy_refactoring`) | 이미 동작하는 로직이다. 먼저 현재 출력을 특성화 테스트로 고정한 뒤(PRESERVE), 경로 정규화와 최근접 대응 일반화를 적용한다(IMPROVE). 테스트 없이 옮기면 "옮기는 김에 조용히 달라진" 측정값을 아무도 잡지 못한다 |
-| 신규 CLI 계약 (`--json`, `--threshold-ms`, 임계 초과 시 exit 1) | 원본에 존재하지 않음 (`argparse`·JSON 출력·임계 exit 모두 없음) | **TDD** (`new_features`) | 계약이 코드보다 먼저 정해져야 하는 순수 신규 표면이다. plan.md M3의 RED 케이스가 이 부분을 담당한다 |
+| 신규 CLI 계약 (`--json`, `--threshold-ms`, 임계 초과 시 exit 1, 오류 경로 exit≠0) | 원본에 존재하지 않음 (`argparse`·JSON 출력·임계 exit 모두 없음) | **TDD** (`new_features`) | 계약이 코드보다 먼저 정해져야 하는 순수 신규 표면이다. plan.md M3의 **RED 케이스 2건**(`--json` 키 계약, 오류 경로 exit)이 이 부분을 담당한다 |
 
 즉 hybrid는 SPEC 단위가 아니라 변경 단위로 적용된다는 원래 정의대로 작동한다. **한 파일 안에서 DDD와 TDD가 함께 쓰이는 것은 모순이 아니라 이 모드가 의도한 동작이다.**
+
+**분기 적용의 정정 (1.2.0 — D10).** 1.1.0의 plan.md M3은 다섯 개 검증 케이스를 전부 "신규 CLI 계약 (TDD)" 아래에 묶었으나, 위 표대로 읽으면 그 중 셋은 TDD 분기의 대상이 아니다.
+
+| 1.1.0 RED 케이스 | 실제 성격 | 1.2.0에서 옮긴 곳 |
+|-----------------|----------|-----------------|
+| 1. 방출 그리드 == 감지기 출력 → `max_drift_ms == 0.0` | **드리프트 계산 자체**의 동작 — 원본 `measure_d1_d5()`가 이미 하던 일 | M3 **DDD 코어** (PRESERVE/IMPROVE) |
+| 2. 마지막에서 0.64초 밀림 → `last_beat_drift_ms ≈ 640` | 동일 — 측정 코어 | M3 **DDD 코어** |
+| 3. `--json` 출력이 유효 JSON이고 계약 키를 모두 포함 | 원본에 없는 신규 표면 | M3 **TDD** (유지) |
+| 4. 존재하지 않는 파일 경로 → exit≠0 + stderr | 원본에 없는 신규 표면 | M3 **TDD** (유지) |
+| 5. `APP_DIR` 없이 실행해도 리포 루트를 찾음 | **정규화 (a)의 검증** — 기존 코드를 고치는 IMPROVE 작업 | M3 **DDD 코어**(IMPROVE 검증) |
+
+선언과 적용이 어긋난 채로 두면 "TDD 분기를 따랐다"는 진술이 실제 작업 순서를 설명하지 못한다. 1·2·5는 **기존 동작을 먼저 고정한 뒤 고치는** DDD 순서로 가고, 3·4만 **계약을 먼저 쓰고 구현하는** TDD 순서로 간다.
 
 ---
 
 ## 8. 비기능 요구사항
 
-| 항목 | 현재 | 목표 |
-|------|------|------|
-| 마지막 박 드리프트 (madmom 경로) | 약 640ms (카드 기재값, 재측정 대상) | `max_drift_ms ≤ 1.0` |
-| BPM 값 변화 | - | 기준 픽스처에서 변경 전후 차이 `≤ 2.0` BPM |
-| 분석 소요 시간 | 기준선 측정 | 증가 없음 (REQ-BPM-008) |
-| 백엔드 테스트 커버리지 | 측정 필요 | `bpm_service.py` 85% 이상 |
-| API 하위 호환성 | - | 기존 4개 필드 이름·타입 불변, `engine`은 추가만 |
+| 항목 | 현재 | 목표 | 검증 |
+|------|------|------|------|
+| 마지막 박 드리프트 (madmom 경로) | 약 640ms (카드 기재값, 재측정 대상) | **감지기 유래 비트**의 `max_drift_ms ≤ 1.0` (삽입 비트는 `inserted_count`로 분리 보고) | AC-BPM-006-AFTER |
+| BPM 값 변화 | - | 기준 픽스처에서 변경 전후 차이 `≤ 2.0` BPM | AC-BPM-008 |
+| 분석 소요 시간 | 기준선 측정 (변경 전 5회 이상) | 중앙값이 변경 전 중앙값의 1.05배 이하 (REQ-BPM-008) | AC-BPM-008 |
+| 백엔드 테스트 커버리지 | **측정 불가** — `pytest-cov` 미설치·미선언 | `pytest-cov>=5.0` 선언·설치 후 `bpm_service.py` 85% 이상 | PRE-4 + AC-BPM-010 |
+| API 하위 호환성 | - | 기존 4개 필드 이름·타입 불변, `engine`은 추가만 | AC-BPM-003 |
 
 ---
 
@@ -436,6 +564,10 @@ Hotel California의 ×2 오검출 검증은 본 SPEC의 범위가 아니라 **�
 | 구 스키마 캐시로 인한 재분석 폭증 | 낮음 | 낮음 | 파일당 1회. 검증 절차에서 `/tmp/bpm_cache` 비우기를 선행 |
 | 국소 보정이 의도치 않게 원본 비트를 이동 | 중간 | 높음 | REQ-BPM-002-INV 불변식을 단위 테스트(AC-BPM-002)로 기계 검증 |
 | 워크트리에서만 조사해 untracked 파일을 못 봄 | — | 높음 | 1.0.0의 네 오판을 낳은 원인(0절). 파일 부재를 주장하기 전에 주 체크아웃에서 확인한다 |
+| 워크트리에 없는 자산을 워크트리에서 쓰라고 지시함 | — | 높음 | 같은 원인의 **반대 방향**. 1.1.0의 수용 기준이 이 형태였고 감사가 D1로 잡았다. 1.2.0에서 실행 위치를 W/P 두 그룹으로 분리했다(6.2.1절, acceptance.md 「실행 계약」) |
+| 커버리지 목표가 검증되지 않은 채 통과 처리됨 | — | 중간 | `pytest-cov` 미설치 상태에서는 `--cov=`가 즉시 실패한다. REQ-BPM-006으로 선언하고 PRE-4에서 설치까지 확인한다 |
+| 드리프트 사후 기준이 국소 보정 발동만으로 실패 | — | 높음 | REQ-BPM-005의 측정 정의가 감지기 유래 비트와 삽입 비트를 분리한다. 사후 기준은 전자만 판정하고 후자는 `inserted_count`로 보고한다 |
+| confidence 동결이 형식상 208행을 덮지 못함 | — | 중간 | REQ-BPM-007이 두 지점을 각각의 함수·행 번호로 지목하고, AC-BPM-007이 값 고정 테스트로 기계 검증한다 |
 
 ---
 
@@ -465,7 +597,8 @@ Hotel California의 ×2 오검출 검증은 본 SPEC의 범위가 아니라 **�
 
 ### Out of Scope — 신뢰도 재설계
 
-- `_calculate_confidence` 공식 변경 또는 librosa 상한 0.8 조정 (REQ-BPM-007로 명시 동결).
+- `_calculate_confidence`(84행 정의)의 공식 변경 — 115행 `1.0 - cv` 포함 (REQ-BPM-007 (1)로 명시 동결).
+- `_detect_with_librosa`(186행 정의) 208행의 librosa 상한 `min(confidence, 0.8)` 조정 (REQ-BPM-007 (2)로 명시 동결). 이 줄은 `_calculate_confidence` 밖에 있으므로 별도 항목으로 적는다.
 - 신뢰도 임계 기반의 결과 거부 로직 신설.
 
 ### Out of Scope — 캐시 인프라
