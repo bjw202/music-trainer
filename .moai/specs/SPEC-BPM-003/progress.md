@@ -547,3 +547,163 @@ engine=madmom confidence=0.978
 - **변경 전 confidence: 0.978** (AC-BPM-007 (b)의 변경 전 값). 변경 후 낮아지는 것은 예상된 결과이며 실패가 아니다 — 범위 `0.0 <= confidence <= 1.0`만 유지되면 된다.
 
 이 세 값은 M2 IMPROVE가 176행 호출을 교체한 이후에는 존재하지 않는다.
+
+---
+
+## M2: 국소 보정 설계 확정 및 구현 (완료 — 블로커 1건 동반)
+
+### 실행 환경 (모든 M2 명령 공통)
+
+```
+pwd        = /Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/.claude/worktrees/t1
+executable = /Users/byunjungwon/Dev/my-project-01/guitar-mp3-trainer-v2/backend/.venv/bin/python
+version    = 3.13.11 (main, Dec 17 2025, 20:55:16) [Clang 21.1.4 ]
+```
+
+캐시 삭제는 `python -c "import shutil; shutil.rmtree('/tmp/bpm_cache', ignore_errors=True)"`로 수행했다
+(리드 결정: 이 환경에서 `rm -rf /tmp/...` 형태는 안전 가드에 걸린다).
+
+### 구현 내용
+
+| 대상 | 변경 |
+|------|------|
+| `bpm_service.py` 모듈 상수 | `REPAIR_GAP_RATIO = 1.75`, `REPAIR_DUPLICATE_RATIO = 0.50`, `REPAIR_WINDOW_SIZE = 8` 신설 (경험값이므로 후속 SPEC에서 조정 가능하도록 분리) |
+| `_repair_beats(beats, window_size=8)` | 신설. `(보정 배열, {"inserted": int, "dropped": int})` 반환. 국소 중앙값은 판정에만 쓰이고 어떤 비트 위치도 대체하지 않는다. 건수는 `logger.info`로도 기록하되, **인터페이스는 반환값이다** (spec.md 4.1절 [HARD]) |
+| `_detect_with_madmom` | 176행 `_smooth_beats(beats)` → `_repair_beats(beats)`. 반환이 4-튜플 `(bpm, beats, confidence, repair_counts)`로 확장. 호출 순서(보정 → BPM → confidence)는 그대로 |
+| `BpmResult.repair_counts` | `field(default=None, compare=False, repr=False)`로 추가하고 **`to_dict()`에는 넣지 않는다.** 캐시·API 스키마의 키 집합은 5개로 고정이므로(AC-BPM-003 / `test_cache_file_format`) 직렬화하면 이미 통과한 기준이 깨진다 |
+| `BpmService.analyze` | madmom 경로는 반환된 건수를 그대로 결과에 싣고, librosa 경로는 보정을 거치지 않으므로 `{"inserted": 0, "dropped": 0}`을 싣는다 (0이 사실이다) |
+
+`_smooth_beats`의 **정의는 그대로 남아 있다** — 삭제는 M5의 몫이다.
+
+### 검증 1 — AC-BPM-002 불변식 테스트 4건
+
+```
+$ cd backend && .venv/bin/python -m pytest tests/test_bpm.py -k "repair" -v
+4 passed, 21 deselected, 7 warnings in 0.02s
+```
+
+**PASS.** `test_repair_preserves_original_beats` / `test_repair_interpolates_gap` /
+`test_repair_drops_duplicate` / `test_repair_no_cumulative_shift`.
+
+### 검증 2 — 호출은 사라지고 정의는 남아 있는가
+
+```
+$ grep -n "_smooth_beats" backend/app/services/bpm_service.py; echo "exit=$?"
+141:    전역 재구성(`_smooth_beats`)과 달리 **살아남은 원본 비트를 이동시키지 않습니다.**
+201:def _smooth_beats(beats: np.ndarray, window_size: int = 8) -> np.ndarray:
+exit=0
+```
+
+**PASS.** 201행에 **정의가 남아 있고**(M5 대상), 141행은 `_repair_beats` 독스트링의 언급이다.
+**호출 지점은 없다** — 176행의 `beats = _smooth_beats(beats)`가 `beats, repair_counts = _repair_beats(beats)`로 교체되었다.
+
+### 검증 3 — AC-BPM-006-AFTER (변경 후 처음으로 실행 가능해짐)
+
+캐시 삭제 후, 워크트리 루트에서:
+
+```
+$ .venv/bin/python scripts/measure_beatgrid_drift.py "music-source/Deep Purple  Smoke On the Water Official Music Video.mp3" --threshold-ms 1.0; echo "exit=$?"
+  비트 수            : 721
+  감지기 유래 비트   : 721
+  삽입 비트          : 0  (서비스 보고: 0)
+  제거 비트          : 0  (서비스 보고: 0)
+  최대 이탈          : 0.000 ms
+  마지막 비트 이탈   : 0.000 ms
+  평균 이탈          : 0.000 ms
+  임계               : 1.000 ms
+exit=0
+```
+
+**PASS.** `max_drift_ms = 0.000` ≤ 1.0. 사전 기준선 360.000ms → 0.000ms.
+
+건수 대조 (`--json` + 단언 3건):
+
+```json
+{"max_drift_ms": 0.0, "last_beat_drift_ms": 0.0, "mean_drift_ms": 0.0, "beat_count": 721,
+ "matched_count": 721, "inserted_count": 0, "dropped_count": 0, "engine": "madmom",
+ "service_inserted": 0, "service_dropped": 0}
+```
+
+```
+inserted=0 dropped=0 matched=721 beat_count=721 service_inserted=0 service_dropped=0
+ALL THREE ASSERTS PASSED
+exit=0
+```
+
+**PASS.** 세 단언(`matched + inserted == beat_count`, `inserted == service_inserted`,
+`dropped == service_dropped`) 전부 통과.
+
+### 검증 4 — `service_inserted = 0`이 실제 관측인가, 기본값인가
+
+`0`이라는 값만으로는 "서비스가 0을 보고했다"와 "스크립트가 0으로 때웠다"가 구별되지 않으므로,
+가드가 실제로 살아 있는지 따로 확인했다. 캐시가 남은 상태로 같은 명령을 다시 돌리면
+`_get_cached_result`가 복원한 `BpmResult`는 `repair_counts=None`이므로 스크립트가 중단해야 한다.
+
+```
+$ .venv/bin/python scripts/measure_beatgrid_drift.py "...Smoke On the Water....mp3" --json
+warm_cache_exit=4
+(stdout 비어 있음)
+측정 중단: BpmResult.repair_counts 가 없다 — 서비스가 국소 보정 건수를 노출하지 않는다. ...
+```
+
+**PASS.** 가드가 살아 있으므로 검증 3의 `0`은 서비스가 실제로 보고한 값이다.
+부수 효과로 **캐시가 남은 상태에서는 드리프트 측정이 exit 4로 중단된다** — 캐시 히트 실행에서는
+보정이 일어나지 않았으므로 건수를 지어내지 않는 것이 옳다는 판단이다(AC의 모든 측정은 PRE-1로 캐시를 비운다).
+
+### 검증 5 — 백엔드 전체 회귀
+
+```
+$ cd backend && .venv/bin/python -m pytest tests/ -q
+1 failed, 142 passed, 8 warnings in 37.76s
+FAILED tests/test_beatgrid_drift.py::test_ported_matches_original_golden
+```
+
+139(변경 전 통과) + 4(신규) = 143 중 **142 통과, 1 실패.** 실패 1건은 아래 블로커다.
+
+### [BLOCKER] `test_ported_matches_original_golden` — M2가 골든 대조를 구조적으로 무력화한다
+
+```
+E       assert 0.0 == 360.0 ± 0.5
+E         Obtained: 0.0
+E         Expected: 360.0 ± 0.5
+```
+
+M3의 골든 픽스처(`backend/tests/fixtures/drift_baseline_smoke_on_the_water.json`)는
+`max_drift_ms = 360.0`을 못 박고 있다. 그런데 이 테스트는 골든을 **저장된 emitted 배열**과
+대조하는 것이 아니라, **살아 있는 서비스를 다시 돌려** 나온 값과 대조한다.
+`--legacy-index-diff`는 드리프트 **계산 방식**만 원본식으로 되돌릴 뿐, `emitted`를 만드는 주체는
+여전히 현재 코드다. 따라서 M2가 `_smooth_beats` 호출을 치운 순간 `max_drift_ms`는 0.0이 되고,
+이 테스트는 **`_smooth_beats`가 호출 경로에 살아 있는 동안에만 통과할 수 있다.**
+
+- 사전 기준선(360.000ms)을 죽이는 것이 M2의 호출 교체라는 점은 plan.md가 이미 명시했고, 그 사슬은 지켰다.
+- 그러나 **같은 이유로 AC-BPM-005 (g)의 골든 대조도 M2 이후에는 성립할 수 없다**는 점은 어느 문서에도 없다.
+- M2 범위 안에서 이 테스트를 통과시킬 방법은 호출 교체를 되돌리는 것뿐이므로, 통과시키지 않았다.
+- 임계·골든 값을 완화하거나 SPEC 문서를 고치지 않았다. **판단은 리드의 몫이다.**
+
+선택지는 세 가지로 보인다 — (1) 골든 대조를 저장된 emitted 스냅샷 기반으로 바꿔 서비스 상태와
+무관하게 만든다, (2) 이 테스트를 M2 이후 폐기 대상(CT-1과 같은 성격)으로 재분류한다,
+(3) 골든을 사후 값으로 갱신한다(다만 그러면 "포팅이 측정을 바꿨는가"를 더는 판정하지 못한다).
+
+### 부수 관측 (판정 아님)
+
+- 변경 후 회귀 실행 로그: `bpm=115.4, beats=721, confidence=0.97, algorithm=madmom`.
+  변경 전 값은 `bpm=115.4000 / confidence=0.978`이었다. AC-BPM-008·AC-BPM-007 (b)의 정식 측정
+  (5회 반복)은 M2 범위가 아니므로 수행하지 않았다 — 위 값은 판정 근거가 아니라 관측 기록이다.
+- Smoke On the Water에서는 보정이 한 건도 발동하지 않았다(`inserted=0, dropped=0`).
+  삽입·제거 경로의 검증은 AC-BPM-002의 합성 입력 테스트가 진다.
+
+### 기존 테스트 수정 1건 (불가피)
+
+`TestAnalyze::test_analyze_sets_engine_madmom`의 모킹이 `_detect_with_madmom`을 3-튜플로 대체하고
+있었다. spec.md 4.1절 [HARD]가 요구하는 건수 반환 때문에 이 함수는 4-튜플이 되었으므로,
+모킹 반환값의 항수를 4로 맞추고 `repair_counts` 단언 한 줄을 덧붙였다. `analyze`에서
+`len(detected) > 3` 식의 방어적 언패킹은 **쓰지 않았다** — 그렇게 하면 건수 누락이 조용히 0으로
+대체되어, 이 SPEC이 없애려는 "구성상 통과하는 기준"이 그대로 되살아난다.
+`TestConfidenceCalculation::*`는 무수정으로 통과했다.
+
+### M2 이후로 남은 것
+
+- M4: CT-1 / CT-2 / CT-3 특성화 테스트
+- M5: `_smooth_beats` 정의 삭제 (201행)
+- M6: `requirements.txt` (madmom 주석 해제 + `pytest-cov`)
+- 위 블로커에 대한 리드 결정

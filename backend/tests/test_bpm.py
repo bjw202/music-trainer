@@ -324,11 +324,18 @@ class TestAnalyze:
     ) -> None:
         """madmom 경로로 분석하면 engine이 "madmom"입니다 (AC-BPM-003)."""
         with patch("app.services.bpm_service._detect_with_madmom") as mock_madmom:
-            mock_madmom.return_value = (120.0, np.array([0.5, 1.0, 1.5]), 0.95)
+            # madmom 경로는 보정 건수까지 4-튜플로 반환한다 (SPEC-BPM-003 M2).
+            mock_madmom.return_value = (
+                120.0,
+                np.array([0.5, 1.0, 1.5]),
+                0.95,
+                {"inserted": 0, "dropped": 0},
+            )
 
             result = service.analyze(str(sample_audio_file))
 
         assert result.engine == "madmom"
+        assert result.repair_counts == {"inserted": 0, "dropped": 0}
 
     @patch("app.services.bpm_service._MADMOM_AVAILABLE", False)
     @patch("app.services.bpm_service._LIBROSA_AVAILABLE", False)
@@ -338,6 +345,77 @@ class TestAnalyze:
         """라이브러리가 없을 때 에러를 발생시키는지 확인합니다."""
         with pytest.raises(RuntimeError, match="BPM 분석 라이브러리"):
             service.analyze(str(sample_audio_file))
+
+
+class TestRepairBeats:
+    """국소 보정 불변식 테스트 (AC-BPM-002 / REQ-BPM-002-INV)."""
+
+    @staticmethod
+    def _assert_superset(original: np.ndarray, repaired: np.ndarray) -> None:
+        """원본의 각 값이 결과에 오차 1e-9 이내로 존재하는지 확인합니다."""
+        for value in original:
+            assert np.min(np.abs(repaired - value)) <= 1e-9, (
+                f"원본 비트 {value} 가 결과에서 사라졌거나 이동했다"
+            )
+
+    def test_repair_preserves_original_beats(self) -> None:
+        """등간격 40비트 + 미세 지터: 원본 값이 그대로 보존됩니다."""
+        from app.services.bpm_service import _repair_beats
+
+        rng = np.random.default_rng(20260905)
+        base = np.arange(40, dtype=float) * 0.5
+        original = base + rng.uniform(-0.01, 0.01, size=base.shape)
+        original = np.sort(original)
+
+        repaired, counts = _repair_beats(original)
+
+        self._assert_superset(original, repaired)
+        assert len(repaired) == len(original) + counts["inserted"] - counts["dropped"]
+
+    def test_repair_interpolates_gap(self) -> None:
+        """한 지점의 간격을 2배로 벌리면 정확히 1개가 삽입됩니다."""
+        from app.services.bpm_service import _repair_beats
+
+        # 0.5초 등간격 20비트에서 인덱스 10의 비트를 빼 간격을 2배(1.0초)로 만든다.
+        original = np.delete(np.arange(20, dtype=float) * 0.5, 10)
+
+        repaired, counts = _repair_beats(original)
+
+        assert counts == {"inserted": 1, "dropped": 0}
+        assert len(repaired) == len(original) + 1
+        # 삽입 위치는 벌어진 간격의 한가운데 (= 원래 있던 자리)
+        assert np.min(np.abs(repaired - 5.0)) <= 1e-9
+        # 나머지 비트는 이동하지 않는다
+        self._assert_superset(original, repaired)
+
+    def test_repair_drops_duplicate(self) -> None:
+        """0.3배 간격의 중복 비트 1개만 제거되고 나머지는 불변입니다."""
+        from app.services.bpm_service import _repair_beats
+
+        base = np.arange(20, dtype=float) * 0.5
+        duplicate = base[10] + 0.15  # 0.3 * 0.5 = 0.15초 뒤의 중복 비트
+        original = np.sort(np.append(base, duplicate))
+
+        repaired, counts = _repair_beats(original)
+
+        assert counts == {"inserted": 0, "dropped": 1}
+        assert len(repaired) == len(original) - 1
+        # 제거된 것은 중복 비트 하나뿐이다
+        assert np.min(np.abs(repaired - duplicate)) > 1e-9
+        # 원래의 등간격 비트는 전부 값 그대로 남는다
+        self._assert_superset(base, repaired)
+
+    def test_repair_no_cumulative_shift(self) -> None:
+        """보정 대상이 없는 60비트 배열은 입력과 완전히 동일하게 나옵니다."""
+        from app.services.bpm_service import _repair_beats
+
+        original = np.arange(60, dtype=float) * 0.48
+
+        repaired, counts = _repair_beats(original)
+
+        assert counts == {"inserted": 0, "dropped": 0}
+        assert len(repaired) == len(original)
+        assert np.max(np.abs(repaired - original)) <= 1e-9
 
 
 class TestConfidenceCalculation:
